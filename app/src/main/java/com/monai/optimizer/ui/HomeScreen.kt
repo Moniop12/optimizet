@@ -38,7 +38,6 @@ fun HomeScreen(vm: MainViewModel) {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Top Bar Header
         Row(
             Modifier.fillMaxWidth(),
             Arrangement.SpaceBetween,
@@ -56,7 +55,6 @@ fun HomeScreen(vm: MainViewModel) {
                 Text("AI Engine & Hardware Tuner", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
 
-            // Refresh Button dengan Animasi Spin 360 Derajat
             val rotation by animateFloatAsState(
                 targetValue = if (vm.isRefreshing) 360f else 0f,
                 animationSpec = tween(durationMillis = 600, easing = LinearEasing),
@@ -117,7 +115,6 @@ fun DeviceGlassCard(vm: MainViewModel) {
 
                 HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
 
-                // Permissions Badges
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     StatusChip("ROOT ${if (s.hasRoot) "✓" else "✗"}", s.hasRoot, if (s.hasRoot) EmeraldGlow else RedErr)
                     StatusChip("SHIZUKU ${if (s.hasShizuku) "✓" else "✗"}", s.hasShizuku, if (s.hasShizuku) CyanGlow else TextDisabled)
@@ -128,7 +125,6 @@ fun DeviceGlassCard(vm: MainViewModel) {
                     }
                 }
 
-                // Live RAM Gauge
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("RAM Usage (${vm.liveAvailRamMb}MB Free)", color = TextSecondary, style = MaterialTheme.typography.labelSmall)

@@ -15,15 +15,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monai.optimizer.optimizer.RootEngine
+import com.monai.optimizer.optimizer.SCmd
 import com.monai.optimizer.optimizer.ShizukuEngine
 import com.monai.optimizer.ui.theme.*
 
 @Composable
 fun ToolsScreen(vm: MainViewModel) {
-    // Memeriksa Akses Universal (Root memiliki hak penuh atas fitur Shizuku/ADB)
     val hasControl = vm.hasRoot || vm.hasShizuku
 
     Column(
@@ -43,7 +44,6 @@ fun ToolsScreen(vm: MainViewModel) {
             }
         }
 
-        // SECTION 1: CPU & RAM
         SecLabel("CPU & MEMORY TUNER")
         GovernorCard(vm)
 
@@ -65,7 +65,7 @@ fun ToolsScreen(vm: MainViewModel) {
             title = "Drop Page Cache",
             desc = "sync; echo 3 > /proc/sys/vm/drop_caches",
             accent = OrangeGlow,
-            enabled = vm.hasRoot, // Drop caches butuh Kernel root
+            enabled = vm.hasRoot,
             vm = vm
         ) {
             vm.runTool("drop_cache", "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches") { SCmd(false, "", "") }
@@ -83,7 +83,6 @@ fun ToolsScreen(vm: MainViewModel) {
             vm.runTool("clear_cache", "Clear System Caches", "pm trim-caches 999G; cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
-        // SECTION 2: SHIZUKU / ADB HYBRID TOOLS (Bisa dijalankan lewat ROOT maupun SHIZUKU)
         SecLabel("SYSTEM UI & ADB TOOLS")
 
         InteractiveToolItem(
