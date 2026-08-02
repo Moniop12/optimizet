@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Glow ring -->
+    <path android:fillColor="#26C6DA" android:fillAlpha="0.18"
+        android:pathData="M54,10 A44,44 0 1 1 53.99,10 Z"/>
+    <!-- M letter for MonAi -->
+    <path android:fillColor="#00BCD4"
+        android:pathData="M 22,80 L 22,28 L 36,28 L 54,58 L 72,28 L 86,28 L 86,80 L 72,80 L 72,54 L 54,84 L 36,54 L 36,80 Z"/>
+</vector>
