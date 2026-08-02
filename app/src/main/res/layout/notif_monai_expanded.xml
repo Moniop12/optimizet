@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="#0D1726">
+
+    <!-- Header App Title & Mode Badge -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView
+            android:id="@+id/txt_exp_app_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="MonAi • Focus App"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="13sp"/>
+        <TextView
+            android:id="@+id/txt_exp_mode_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MODE: AUTO"
+            android:textColor="#00F2FE"
+            android:textStyle="bold"
+            android:textSize="11sp"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1F2E45"
+        android:layout_marginVertical="6dp"/>
+
+    <!-- Grid Row 1: RAM & CPU -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <!-- RAM Section -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="APP RAM"
+                android:textColor="#8B9CB0"
+                android:textSize="9sp"/>
+            <TextView
+                android:id="@+id/txt_exp_ram_val"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="143 MB"
+                android:textColor="#00F2FE"
+                android:textStyle="bold"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <!-- CPU Section -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CPU FREQ &amp; TEMP"
+                android:textColor="#8B9CB0"
+                android:textSize="9sp"/>
+            <TextView
+                android:id="@+id/txt_exp_cpu_val"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1113 MHz (39.1°C)"
+                android:textColor="#00C6FF"
+                android:textStyle="bold"
+                android:textSize="12sp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Grid Row 2: POWER STREAM -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="6dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="POWER STREAM (BATTERY)"
+            android:textColor="#8B9CB0"
+            android:textSize="9sp"/>
+        <TextView
+            android:id="@+id/txt_exp_power_val"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="-267 mA (Discharge) • 56% (39.0°C)"
+            android:textColor="#FF5E36"
+            android:textStyle="bold"
+            android:textSize="12sp"/>
+    </LinearLayout>
+
+    <!-- Row 3: Action Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btn_notif_perf"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="PERF"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:backgroundTint="#FF5E36"/>
+
+        <Button
+            android:id="@+id/btn_notif_bal"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="BALANCED"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:backgroundTint="#00C6FF"/>
+
+        <Button
+            android:id="@+id/btn_notif_save"
+            android:layout_width="0dp"
+            android:layout_height="32dp"
+            android:layout_weight="1"
+            android:text="SAVER"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:backgroundTint="#00F5A0"/>
+    </LinearLayout>
+</LinearLayout>

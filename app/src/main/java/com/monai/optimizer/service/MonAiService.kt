@@ -4,10 +4,11 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
-import android.text.Html
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
@@ -56,8 +57,7 @@ class MonAiService : Service() {
             ACTION_START -> {
                 if (!isRunning) {
                     isRunning = true
-                    val initHtml = Html.fromHtml("<b>Inisialisasi sistem monitoring...</b>", Html.FROM_HTML_MODE_LEGACY)
-                    startForeground(NOTIF_ID, buildNotification("MonAi  •  Initializing", initHtml, initHtml))
+                    startForeground(NOTIF_ID, buildNotification(AppFocusInfo("Initializing...", 0L), "--", "--", BatteryPowerInfo(false, 0, 0, 0.0)))
                     startMonitoringLoop()
                 }
             }
@@ -90,41 +90,7 @@ class MonAiService : Service() {
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                val profileLabel = currentActiveProfile?.name ?: "AUTO"
-                val ramAppStr = if (focusInfo.appRamMb > 0) "${focusInfo.appRamMb} MB" else "System"
-
-                val title = "MonAi  •  ${focusInfo.appLabel}"
-
-                // Warna HTML Aksen
-                val colorRam = "#00F2FE"
-                val colorCpu = "#00C6FF"
-                val colorPower = if (bat.isCharging) "#00F5A0" else "#FF5E36"
-                val colorMode = "#00F2FE"
-
-                val powerText = if (bat.isCharging) {
-                    "+${abs(bat.currentMa)} mA (Charging)"
-                } else {
-                    "-${abs(bat.currentMa)} mA (Discharge)"
-                }
-
-                val formattedTemp = "%.1f".format(bat.tempC)
-
-                // 1. Short Text (Collapsed View)
-                val shortBodyHtml = Html.fromHtml(
-                    "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; " +
-                    "<b>Power:</b> <font color='$colorPower'><b>$powerText</b></font>",
-                    Html.FROM_HTML_MODE_LEGACY
-                )
-
-                // 2. Big Text (Expanded View - 100% Bebas Crash)
-                val bigBodyHtml = Html.fromHtml(
-                    "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; <b>Mode:</b> <font color='$colorMode'><b>$profileLabel</b></font><br>" +
-                    "<b>CPU:</b> <font color='$colorCpu'><b>$cpuFreq</b></font> ($cpuTemp)<br>" +
-                    "<b>Power Stream:</b> <font color='$colorPower'><b>$powerText</b></font> &nbsp;•&nbsp; ${bat.percentage}% (${formattedTemp}°C)",
-                    Html.FROM_HTML_MODE_LEGACY
-                )
-
-                val notif = buildNotification(title, shortBodyHtml, bigBodyHtml)
+                val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
@@ -242,7 +208,12 @@ class MonAiService : Service() {
         valRead
     } catch (_: Exception) { 0 }
 
-    private fun buildNotification(title: String, shortBody: CharSequence, bigBody: CharSequence): Notification {
+    private fun buildNotification(
+        focus: AppFocusInfo,
+        cpuFreq: String,
+        cpuTemp: String,
+        bat: BatteryPowerInfo
+    ): Notification {
         val openAppIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -269,18 +240,45 @@ class MonAiService : Service() {
             }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val profileLabel = currentActiveProfile?.name ?: "AUTO"
+        val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
+        val powerText = if (bat.isCharging) "+${abs(bat.currentMa)} mA (Charging)" else "-${abs(bat.currentMa)} mA (Discharge)"
+        val powerColor = if (bat.isCharging) Color.parseColor("#00F5A0") else Color.parseColor("#FF5E36")
+        val formattedTemp = "%.1f".format(bat.tempC)
+
+        // Populate Collapsed Custom View
+        val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
+            setTextViewText(R.id.txt_app_title, "MonAi • ${focus.appLabel}")
+            setTextViewText(R.id.txt_mode_badge, profileLabel)
+            setTextViewText(R.id.txt_col_ram, "RAM: $ramAppStr")
+            setTextViewText(R.id.txt_col_cpu, "CPU: $cpuFreq")
+            setTextViewText(R.id.txt_col_power, "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA")
+            setTextColor(R.id.txt_col_power, powerColor)
+        }
+
+        // Populate Expanded Custom View
+        val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
+            setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
+            setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
+            setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
+            setTextViewText(R.id.txt_exp_cpu_val, "$cpuFreq ($cpuTemp)")
+            setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
+            setTextColor(R.id.txt_exp_power_val, powerColor)
+
+            setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
+            setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)
+            setOnClickPendingIntent(R.id.btn_notif_save, saveIntent)
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(shortBody)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(bigBody))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setCustomContentView(viewsCollapsed)
+            .setCustomBigContentView(viewsExpanded)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, "PERF", perfIntent)
-            .addAction(0, "BALANCED", balIntent)
-            .addAction(0, "SAVER", saveIntent)
             .build()
     }
 
