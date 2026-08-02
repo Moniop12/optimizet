@@ -46,7 +46,14 @@ class MonAiService : Service() {
             ACTION_START -> {
                 if (!isRunning) {
                     isRunning = true
-                    startForeground(NOTIF_ID, buildNotification("MonAi  •  Initializing", "Loading system metrics..."))
+                    startForeground(
+                        NOTIF_ID,
+                        buildNotification(
+                            title = "MonAi  •  Initializing",
+                            shortBody = "Loading metrics...",
+                            bigBody = "Loading system metrics..."
+                        )
+                    )
                     startMonitoringLoop()
                 }
             }
@@ -80,12 +87,19 @@ class MonAiService : Service() {
                 val batteryStr = getBatteryInfo(this@MonAiService)
 
                 val profileLabel = currentActiveProfile?.name ?: "AUTO"
-                val ramAppStr = if (focusInfo.appRamMb > 0) "App RAM: ${focusInfo.appRamMb} MB" else "System Monitor"
+                val ramAppStr = if (focusInfo.appRamMb > 0) "${focusInfo.appRamMb} MB" else "System"
 
                 val title = "MonAi  •  ${focusInfo.appLabel}"
-                val body = "Mode: $profileLabel  |  $ramAppStr  |  CPU: $cpuFreq ($cpuTemp)  |  Battery: $batteryStr"
 
-                val notif = buildNotification(title, body)
+                // 1. Tampilan Ringkas (Saat Notifikasi Tertutup / Collapsed)
+                val shortBody = "Mode: $profileLabel  •  App RAM: $ramAppStr  •  CPU: $cpuFreq"
+
+                // 2. Tampilan Multi-Baris Rapi (Saat Notifikasi Ditarik / Expanded)
+                val bigBody = "App RAM: $ramAppStr  •  Profile: $profileLabel\n" +
+                              "CPU: $cpuFreq ($cpuTemp)\n" +
+                              "Battery: $batteryStr"
+
+                val notif = buildNotification(title, shortBody, bigBody)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
@@ -113,7 +127,6 @@ class MonAiService : Service() {
         }
     }
 
-    // Mendapatkan Nama Aplikasi Resmi (misal: YouTube) & RAM App
     private fun getFocusedAppInfo(ctx: Context, hasRoot: Boolean): AppFocusInfo {
         if (!hasRoot) return AppFocusInfo("System Active", 0L)
         try {
@@ -158,7 +171,6 @@ class MonAiService : Service() {
         } catch (_: Exception) { 0L }
     }
 
-    // Menggunakan System Native Battery API
     private fun getBatteryInfo(ctx: Context): String {
         return try {
             val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
@@ -183,7 +195,7 @@ class MonAiService : Service() {
         } catch (_: Exception) { "71%  •  33.0°C" }
     }
 
-    private fun buildNotification(title: String, content: String): Notification {
+    private fun buildNotification(title: String, shortBody: String, bigBody: String): Notification {
         val openAppIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -212,15 +224,16 @@ class MonAiService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
-            .setContentText(content)
+            .setContentText(shortBody)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigBody))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, "PERFORMANCE", perfIntent)
+            .addAction(0, "PERF", perfIntent)
             .addAction(0, "BALANCED", balIntent)
-            .addAction(0, "BATTERY SAVER", saveIntent)
+            .addAction(0, "SAVER", saveIntent)
             .build()
     }
 
