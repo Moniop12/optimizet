@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Mode Notification Colors -->
+    <color name="notif_title_color">#FFFFFF</color>
+    <color name="notif_sub_color">#94A3B8</color>
+    <color name="notif_ram_color">#00F2FE</color>
+    <color name="notif_cpu_color">#38BDF8</color>
+    <color name="notif_power_discharge">#F87171</color>
+    <color name="notif_power_charge">#34D399</color>
+
+    <!-- Button Backgrounds Dark Mode -->
+    <color name="notif_btn_perf_bg">#25FF8A65</color>
+    <color name="notif_btn_bal_bg">#2538BDF8</color>
+    <color name="notif_btn_save_bg">#2534D399</color>
+</resources>

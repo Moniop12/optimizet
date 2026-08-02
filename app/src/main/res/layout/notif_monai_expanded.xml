@@ -9,7 +9,6 @@
     android:paddingBottom="4dp"
     android:background="@android:color/transparent">
 
-    <!-- Header App Title & Mode Badge -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -21,7 +20,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="MonAi • Focus App"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/notif_title_color"
             android:textStyle="bold"
             android:textSize="13sp"/>
         <TextView
@@ -29,7 +28,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MODE: AUTO"
-            android:textColor="#00F2FE"
+            android:textColor="@color/notif_ram_color"
             android:textStyle="bold"
             android:textSize="11sp"/>
     </LinearLayout>
@@ -37,17 +36,15 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="0.8dp"
-        android:background="#20FFFFFF"
+        android:background="#20888888"
         android:layout_marginTop="5dp"
         android:layout_marginBottom="6dp"/>
 
-    <!-- Grid Row 1: RAM & CPU -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
 
-        <!-- RAM Section -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -57,7 +54,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="APP RAM"
-                android:textColor="#94A3B8"
+                android:textColor="@color/notif_sub_color"
                 android:textSize="9sp"
                 android:textStyle="bold"/>
             <TextView
@@ -65,12 +62,11 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="127 MB"
-                android:textColor="#00F2FE"
+                android:textColor="@color/notif_ram_color"
                 android:textStyle="bold"
                 android:textSize="12sp"/>
         </LinearLayout>
 
-        <!-- CPU Section -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -80,7 +76,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CPU FREQ &amp; TEMP"
-                android:textColor="#94A3B8"
+                android:textColor="@color/notif_sub_color"
                 android:textSize="9sp"
                 android:textStyle="bold"/>
             <TextView
@@ -88,13 +84,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="633 / 1843 MHz (39.0°C)"
-                android:textColor="#38BDF8"
+                android:textColor="@color/notif_cpu_color"
                 android:textStyle="bold"
                 android:textSize="12sp"/>
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Grid Row 2: POWER STREAM -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -104,7 +99,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="POWER STREAM (BATTERY)"
-            android:textColor="#94A3B8"
+            android:textColor="@color/notif_sub_color"
             android:textSize="9sp"
             android:textStyle="bold"/>
         <TextView
@@ -112,12 +107,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="-714 mA (Discharge) • 50% (39.0°C)"
-            android:textColor="#F87171"
+            android:textColor="@color/notif_power_discharge"
             android:textStyle="bold"
             android:textSize="12sp"/>
     </LinearLayout>
 
-    <!-- Action Buttons with Sleek Translucent Pills -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -132,7 +126,7 @@
             android:layout_marginEnd="4dp"
             android:gravity="center"
             android:text="PERF"
-            android:textColor="#FF8A65"
+            android:textColor="@color/notif_power_discharge"
             android:textSize="10sp"
             android:textStyle="bold"
             android:background="@drawable/notif_btn_bg_perf"/>
@@ -145,7 +139,7 @@
             android:layout_marginEnd="4dp"
             android:gravity="center"
             android:text="BALANCED"
-            android:textColor="#38BDF8"
+            android:textColor="@color/notif_cpu_color"
             android:textSize="10sp"
             android:textStyle="bold"
             android:background="@drawable/notif_btn_bg_bal"/>
@@ -157,7 +151,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="SAVER"
-            android:textColor="#34D399"
+            android:textColor="@color/notif_power_charge"
             android:textSize="10sp"
             android:textStyle="bold"
             android:background="@drawable/notif_btn_bg_save"/>

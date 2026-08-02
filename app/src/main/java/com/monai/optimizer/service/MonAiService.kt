@@ -4,12 +4,12 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
 import com.monai.optimizer.optimizer.OptProfile
@@ -243,10 +243,13 @@ class MonAiService : Service() {
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
         val powerText = if (bat.isCharging) "+${abs(bat.currentMa)} mA (Charging)" else "-${abs(bat.currentMa)} mA (Discharge)"
-        val powerColor = if (bat.isCharging) Color.parseColor("#34D399") else Color.parseColor("#F87171")
+        val powerColor = ContextCompat.getColor(
+            this,
+            if (bat.isCharging) R.color.notif_power_charge else R.color.notif_power_discharge
+        )
         val formattedTemp = "%.1f".format(bat.tempC)
 
-        // Populate Collapsed Custom View
+        // Populate Collapsed View
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
             setTextViewText(R.id.txt_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_mode_badge, profileLabel)
@@ -256,7 +259,7 @@ class MonAiService : Service() {
             setTextColor(R.id.txt_col_power, powerColor)
         }
 
-        // Populate Expanded Custom View
+        // Populate Expanded View
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
             setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")

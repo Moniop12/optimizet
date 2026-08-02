@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="MonAi • Focus App"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/notif_title_color"
             android:textStyle="bold"
             android:textSize="13sp"/>
         <TextView
@@ -27,7 +27,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="AUTO"
-            android:textColor="#00F2FE"
+            android:textColor="@color/notif_ram_color"
             android:textStyle="bold"
             android:textSize="11sp"/>
     </LinearLayout>
@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="RAM: 127 MB"
-            android:textColor="#00F2FE"
+            android:textColor="@color/notif_ram_color"
             android:textSize="11sp"
             android:textStyle="bold"/>
         <TextView
@@ -52,7 +52,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1.2"
             android:text="CPU: 633 MHz"
-            android:textColor="#38BDF8"
+            android:textColor="@color/notif_cpu_color"
             android:textSize="11sp"
             android:textStyle="bold"/>
         <TextView
@@ -61,7 +61,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="-714 mA"
-            android:textColor="#F87171"
+            android:textColor="@color/notif_power_discharge"
             android:textSize="11sp"
             android:textStyle="bold"/>
     </LinearLayout>

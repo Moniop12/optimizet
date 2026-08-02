@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light Mode Notification Colors -->
+    <color name="notif_title_color">#1E293B</color>
+    <color name="notif_sub_color">#64748B</color>
+    <color name="notif_ram_color">#0284C7</color>
+    <color name="notif_cpu_color">#0369A1</color>
+    <color name="notif_power_discharge">#DC2626</color>
+    <color name="notif_power_charge">#16A34A</color>
+
+    <!-- Button Backgrounds Light Mode -->
+    <color name="notif_btn_perf_bg">#20DC2626</color>
+    <color name="notif_btn_bal_bg">#200284C7</color>
+    <color name="notif_btn_save_bg">#2016A34A</color>
+</resources>
