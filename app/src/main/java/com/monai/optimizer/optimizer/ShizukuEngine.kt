@@ -17,8 +17,16 @@ object ShizukuEngine {
 
     fun requestPerm() { try { Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {} }
 
+    @Suppress("DiscouragedPrivateApi", "UNCHECKED_CAST")
     private fun sh(cmd: String): SCmd = try {
-        val p   = Shizuku.newProcess(arrayOf("sh", "-c", cmd), null, null)
+        // Reflection workaround — newProcess is public in source but Kotlin sees it as private
+        val method = Class.forName("rikka.shizuku.Shizuku").getMethod(
+            "newProcess",
+            Array<String>::class.java,
+            Array<String>::class.java,
+            String::class.java
+        )
+        val p   = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
         val out = p.inputStream.bufferedReader().readText().trim()
         val err = p.errorStream.bufferedReader().readText().trim()
         val rc  = p.waitFor()

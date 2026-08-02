@@ -174,8 +174,8 @@ fun ToolItem(
     ) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
+            Arrangement.spacedBy(11.dp),
             Alignment.CenterVertically,
-            Arrangement.spacedBy(11.dp)
         ) {
             Surface(shape = RoundedCornerShape(9.dp), color = accent.copy(alpha = 0.12f)) {
                 Icon(icon, null, Modifier.padding(8.dp).size(20.dp), tint = accent)
@@ -280,7 +280,7 @@ fun NoRootInfo() {
         shape = RoundedCornerShape(12.dp), color = DarkCard,
         border = BorderStroke(1.dp, RedErr.copy(alpha = 0.3f))
     ) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), Alignment.CenterVertically, Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
             Icon(Icons.Filled.Lock, null, tint = RedErr, modifier = Modifier.size(20.dp))
             Column {
                 Text("Root not detected", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
@@ -300,7 +300,7 @@ fun NoShizukuInfo(vm: MainViewModel) {
             shape = RoundedCornerShape(12.dp), color = DarkCard,
             border = BorderStroke(1.dp, AmberWarn.copy(alpha = 0.3f))
         ) {
-            Row(Modifier.fillMaxWidth().padding(14.dp), Alignment.CenterVertically, Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(14.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
                 Icon(Icons.Filled.PowerSettingsNew, null, tint = AmberWarn, modifier = Modifier.size(20.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Shizuku not active", color = TextPrimary, style = MaterialTheme.typography.titleMedium)

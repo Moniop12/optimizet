@@ -253,7 +253,7 @@ fun AiRecCard(profile: OptProfile, vm: MainViewModel) {
         CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.07f)),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
     ) {
-        Row(Modifier.padding(14.dp), Alignment.CenterVertically, Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(14.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(10.dp), color = accent.copy(alpha = 0.14f)) {
                 Icon(Icons.Filled.AutoAwesome, null, Modifier.padding(10.dp).size(22.dp), tint = accent)
             }
@@ -289,8 +289,8 @@ fun ProfileCard(
     ) {
         Row(
             Modifier.fillMaxWidth().padding(13.dp),
+            Arrangement.spacedBy(11.dp),
             Alignment.CenterVertically,
-            Arrangement.spacedBy(11.dp)
         ) {
             Surface(shape = RoundedCornerShape(10.dp), color = accent.copy(alpha = 0.13f)) {
                 Icon(icon, null, Modifier.padding(9.dp).size(22.dp), tint = accent)

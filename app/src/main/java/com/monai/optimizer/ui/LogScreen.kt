@@ -89,7 +89,7 @@ fun LogCard(e: LogEntry) {
         RoundedCornerShape(9.dp),
         CardDefaults.cardColors(containerColor = DarkCard)
     ) {
-        Row(Modifier.padding(11.dp), Alignment.CenterVertically, Arrangement.spacedBy(9.dp)) {
+        Row(Modifier.padding(11.dp), Arrangement.spacedBy(9.dp), Alignment.CenterVertically) {
             Icon(
                 if (e.success) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
                 null,
