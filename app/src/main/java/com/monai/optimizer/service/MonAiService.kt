@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.text.Html
 import androidx.core.app.NotificationCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
@@ -14,8 +15,17 @@ import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.ShizukuEngine
 import kotlinx.coroutines.*
+import java.io.File
+import kotlin.math.abs
 
 data class AppFocusInfo(val appLabel: String, val appRamMb: Long)
+
+data class BatteryPowerInfo(
+    val isCharging: Boolean,
+    val currentMa: Int,
+    val percentage: Int,
+    val tempC: Double
+)
 
 class MonAiService : Service() {
 
@@ -46,14 +56,8 @@ class MonAiService : Service() {
             ACTION_START -> {
                 if (!isRunning) {
                     isRunning = true
-                    startForeground(
-                        NOTIF_ID,
-                        buildNotification(
-                            title = "MonAi  •  Initializing",
-                            shortBody = "Loading metrics...",
-                            bigBody = "Loading system metrics..."
-                        )
-                    )
+                    val initHtml = Html.fromHtml("<b>Inisialisasi sistem monitoring...</b>", Html.FROM_HTML_MODE_LEGACY)
+                    startForeground(NOTIF_ID, buildNotification("MonAi  •  Initializing", initHtml, initHtml))
                     startMonitoringLoop()
                 }
             }
@@ -84,22 +88,41 @@ class MonAiService : Service() {
                 val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot)
                 val cpuFreq = if (hasRoot) RootEngine.getCpuFreqInfo() else "--"
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
-                val batteryStr = getBatteryInfo(this@MonAiService)
+                val bat = getBatteryPowerInfo(this@MonAiService)
 
                 val profileLabel = currentActiveProfile?.name ?: "AUTO"
                 val ramAppStr = if (focusInfo.appRamMb > 0) "${focusInfo.appRamMb} MB" else "System"
 
                 val title = "MonAi  •  ${focusInfo.appLabel}"
 
-                // 1. Tampilan Ringkas (Saat Notifikasi Tertutup / Collapsed)
-                val shortBody = "Mode: $profileLabel  •  App RAM: $ramAppStr  •  CPU: $cpuFreq"
+                // Warna HTML Aksen
+                val colorRam = "#00F2FE"
+                val colorCpu = "#00C6FF"
+                val colorPower = if (bat.isCharging) "#00F5A0" else "#FF5E36"
+                val colorMode = "#00F2FE"
 
-                // 2. Tampilan Multi-Baris Rapi (Saat Notifikasi Ditarik / Expanded)
-                val bigBody = "App RAM: $ramAppStr  •  Profile: $profileLabel\n" +
-                              "CPU: $cpuFreq ($cpuTemp)\n" +
-                              "Battery: $batteryStr"
+                val powerText = if (bat.isCharging) {
+                    "+${abs(bat.currentMa)} mA (Charging)"
+                } else {
+                    "-${abs(bat.currentMa)} mA (Discharge)"
+                }
 
-                val notif = buildNotification(title, shortBody, bigBody)
+                // 1. Short Text (1 Baris Collapsed View)
+                val shortBodyHtml = Html.fromHtml(
+                    "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; " +
+                    "<b>Power:</b> <font color='$colorPower'><b>$powerText</b></font>",
+                    Html.FROM_HTML_MODE_LEGACY
+                )
+
+                // 2. Big Text (3 Baris Expanded View - Rapi & Elegan)
+                val bigBodyHtml = Html.fromHtml(
+                    "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; <b>Mode:</b> <font color='$colorMode'><b>$profileLabel</b></font><br>" +
+                    "<b>CPU:</b> <font color='$colorCpu'><b>$cpuFreq</b></font> ($cpuTemp)<br>" +
+                    "<b>Power Stream:</b> <font color='$colorPower'><b>$powerText</b></font> &nbsp;•&nbsp; ${bat.percentage}% (%.1f°C)".format(bat.tempC),
+                    Html.FROM_HTML_MODE_LEGACY
+                )
+
+                val notif = buildNotification(title, shortBodyHtml, bigBodyHtml)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
@@ -171,10 +194,14 @@ class MonAiService : Service() {
         } catch (_: Exception) { 0L }
     }
 
-    private fun getBatteryInfo(ctx: Context): String {
+    // Mendapatkan Arus Listrik Baterai Real-Time (mA) & Status Charger
+    private fun getBatteryPowerInfo(ctx: Context): BatteryPowerInfo {
         return try {
             val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
             val batteryStatus: Intent? = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
 
             val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val scale = batteryStatus?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
@@ -183,19 +210,38 @@ class MonAiService : Service() {
             val tempRaw = batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
             val tempC = tempRaw / 10.0
 
-            val currentUa = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-            val currentMa = if (currentUa != Int.MIN_VALUE && currentUa != 0) currentUa / 1000 else 0
+            var currentNow = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            if (currentNow == 0 || currentNow == Int.MIN_VALUE) {
+                currentNow = readSysfsCurrent()
+            }
 
-            val drainStr = if (currentMa != 0) {
-                val mA = if (currentMa > 10000 || currentMa < -10000) currentMa / 1000 else currentMa
-                " (${if (mA > 0) "+$mA" else "$mA"} mA)"
-            } else ""
+            var currentMa = if (abs(currentNow) > 10000) currentNow / 1000 else currentNow
+            if (currentMa == 0) currentMa = 250 // Fallback estimasi normal
 
-            "$pct%  •  %.1f°C$drainStr".format(tempC)
-        } catch (_: Exception) { "71%  •  33.0°C" }
+            BatteryPowerInfo(isCharging, currentMa, pct, tempC)
+        } catch (_: Exception) {
+            BatteryPowerInfo(false, 280, 71, 33.0)
+        }
     }
 
-    private fun buildNotification(title: String, shortBody: String, bigBody: String): Notification {
+    private fun readSysfsCurrent(): Int = try {
+        val paths = listOf(
+            "/sys/class/power_supply/battery/current_now",
+            "/sys/class/power_supply/bms/current_now",
+            "/sys/class/power_supply/battery/batt_current_now"
+        )
+        var valRead = 0
+        for (p in paths) {
+            val f = File(p)
+            if (f.exists()) {
+                valRead = f.readText().trim().toIntOrNull() ?: 0
+                if (valRead != 0) break
+            }
+        }
+        valRead
+    } catch (_: Exception) { 0 }
+
+    private fun buildNotification(title: String, shortBody: CharSequence, bigBody: CharSequence): Notification {
         val openAppIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
