@@ -101,10 +101,10 @@ fun HomeScreen(vm: MainViewModel) {
                     }
                 }) {
                     Icon(
-                        if (vm.isLiveServiceRunning) Icons.Filled.NotificationsActive else Notifications,
-                        "Live Service",
-                        tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextTertiary
-                    )
+    if (vm.isLiveServiceRunning) Icons.Filled.NotificationsActive else Icons.Default.Notifications,
+    "Live Service",
+    tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextTertiary
+)
                 }
 
                 val rotation by animateFloatAsState(
