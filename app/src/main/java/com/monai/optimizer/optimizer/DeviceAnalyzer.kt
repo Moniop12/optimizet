@@ -56,7 +56,7 @@ object DeviceAnalyzer {
         )
     }
 
-    // Mengubah RAM usable (misal 3043MB) menjadi estimasi RAM fisik Pabrikan (4GB)
+    // Convert usable RAM (for example 3043MB) into an estimated marketed physical RAM tier (4GB)
     private fun calculatePhysicalRamGb(usableMb: Long): Int {
         val gb = usableMb / 1024.0
         return when {

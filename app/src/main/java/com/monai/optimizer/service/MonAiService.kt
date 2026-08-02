@@ -82,7 +82,7 @@ class MonAiService : Service() {
                     currentActiveProfile = profile
                     scope.launch {
                         applyProfileFromService(profile)
-                        // Trigger update notifikasi seketika setelah tombol ditekan
+                        // Refresh the notification immediately after a quick action is tapped
                         val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot())
                         val bat = getBatteryPowerInfo(this@MonAiService)
                         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -115,7 +115,7 @@ class MonAiService : Service() {
                 }
 
                 if (hasRoot && isThermalProtectEnabled && bat.isCharging && bat.tempC > 42.0) {
-                    ChargingEngine.setChargeCurrentMaxMa(500) // Turunkan arus ke 500mA saat dingin
+                    ChargingEngine.setChargeCurrentMaxMa(500) // Reduce current to 500mA under thermal protection
                 }
 
                 val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
@@ -285,7 +285,7 @@ class MonAiService : Service() {
         )
         val formattedTemp = "%.1f".format(bat.tempC)
 
-        // Indikator Tombol Aktif (Tanda Centang ✓)
+        // Active button indicator (checkmark ✓)
         val isPerf = currentActiveProfile == OptProfile.PERFORMANCE
         val isBal = currentActiveProfile == OptProfile.BALANCED
         val isSave = currentActiveProfile == OptProfile.BATTERY
@@ -304,7 +304,7 @@ class MonAiService : Service() {
             setTextColor(R.id.txt_col_power, powerColor)
         }
 
-        // Populate Expanded View dengan Tanda Centang
+        // Populate the expanded view with active-state checkmarks
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
             setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")

@@ -2,32 +2,35 @@ package com.monai.optimizer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ── Neon & Cyberpunk Palette ──────────────────────────────
-val CyanGlow     = Color(0xFF00F2FE)
-val Cyan400      = Color(0xFF26C6DA)
-val Cyan500      = Color(0xFF00C6FF)
-val Cyan700      = Color(0xFF0097A7)
-val Cyan900      = Color(0xFF00334E)
+// Professional dark palette
+val BrandPrimary    = Color(0xFF67A8FF)
+val BrandPrimary2   = Color(0xFF8B7CFF)
+val BrandPrimaryDim = Color(0xFF1F3557)
+val BrandCyan       = Color(0xFF74D4FF)
+val EmeraldGlow     = Color(0xFF3DDC97)
+val OrangeGlow      = Color(0xFFFF9B5E)
+val AmberWarn       = Color(0xFFFFC857)
+val RedErr          = Color(0xFFFF6B6B)
 
-val EmeraldGlow  = Color(0xFF00F5A0)
-val PurpleGlow   = Color(0xFF7F00FF)
-val OrangeGlow   = Color(0xFFFF5E36)
-val OrangeAcc    = Color(0xFFFF5E36)
+val DarkBg          = Color(0xFF07111F)
+val DarkSurface     = Color(0xFF0D1B2A)
+val DarkSurfaceVar  = Color(0xFF12243A)
+val CardSurface     = Color(0xFF10233A)
+val CardSurfaceAlt  = Color(0xFF132946)
+val GlassBorder     = Color(0xFF223A5F)
+val DividerSoft     = Color(0xFF1E3555)
 
-// ── Dark Glass Backgrounds ──────────────────────────────────
-val DarkBg         = Color(0xFF050811)
-val DarkSurface    = Color(0xFF0D1726)
-val DarkSurfaceVar = Color(0xFF121E30)
-val GlassSurface   = Color(0xCC0D1726)
-val GlassCard      = Color(0xE6121E30)
-val GlassBorder    = Color(0x3300F2FE)
+val TextPrimary     = Color(0xFFF5F8FC)
+val TextSecondary   = Color(0xFFA6B6CC)
+val TextDisabled    = Color(0xFF5D708A)
 
-// ── Typography ──────────────────────────────────────────────
-val TextPrimary   = Color(0xFFF0F6FC)
-val TextSecondary = Color(0xFF8B9CB0)
-val TextDisabled  = Color(0xFF435164)
-
-// ── Status Colors ───────────────────────────────────────────
-val GreenOk   = Color(0xFF00F5A0)
-val RedErr    = Color(0xFFFF4B4B)
-val AmberWarn = Color(0xFFFFB800)
+val CyanGlow        = BrandCyan
+val Cyan400         = Color(0xFF59C8F5)
+val Cyan500         = BrandPrimary
+val Cyan700         = Color(0xFF3A7BD5)
+val Cyan900         = BrandPrimaryDim
+val PurpleGlow      = BrandPrimary2
+val OrangeAcc       = OrangeGlow
+val GlassSurface    = CardSurface
+val GlassCard       = CardSurfaceAlt
+val GreenOk         = EmeraldGlow
