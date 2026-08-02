@@ -1,6 +1,10 @@
 package com.monai.optimizer.ui
 
+import android.app.ActivityManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -15,6 +19,7 @@ import com.monai.optimizer.optimizer.SCmd
 import com.monai.optimizer.optimizer.ShizukuEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -42,7 +47,7 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
-    // Root live data
+    // Real-Time Stats
     var cpuFreq by mutableStateOf("--")
         private set
     var cpuTemp by mutableStateOf("--")
@@ -53,27 +58,74 @@ class MainViewModel : ViewModel() {
         private set
     var currentGov by mutableStateOf("--")
         private set
+    var liveAvailRamMb by mutableStateOf(0L)
+        private set
+    var ramUsedPercent by mutableStateOf(0)
+        private set
+    var cacheSizeMb by mutableStateOf(0L)
+        private set
 
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private var isTickerRunning = false
 
     fun init(ctx: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val root = RootEngine.hasRoot()
             val shz  = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
             val dev  = DeviceAnalyzer.analyze(ctx, root, shz)
+
             withContext(Dispatchers.Main) {
-                hasRoot = root; hasShizuku = shz; spec = dev
+                hasRoot = root
+                hasShizuku = shz
+                spec = dev
             }
+
             if (root) {
-                val fr  = RootEngine.getCpuFreqInfo()
-                val tp  = RootEngine.getCpuTemp()
-                val zr  = RootEngine.getZramInfo()
                 val gvs = RootEngine.getGovernors()
-                val gv  = RootEngine.getCurrentGovernor()
-                withContext(Dispatchers.Main) {
-                    cpuFreq = fr; cpuTemp = tp; zramInfo = zr
-                    governors = gvs; currentGov = gv
+                withContext(Dispatchers.Main) { governors = gvs }
+            }
+
+            startRealTimeTicker(ctx)
+        }
+    }
+
+    private fun startRealTimeTicker(ctx: Context) {
+        if (isTickerRunning) return
+        isTickerRunning = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val mem = ActivityManager.MemoryInfo()
+
+            while (isActive) {
+                am.getMemoryInfo(mem)
+                val avail = mem.availMem / (1024L * 1024L)
+                val total = mem.totalMem / (1024L * 1024L)
+                val usedPct = (((total - avail).toDouble() / total.toDouble()) * 100).toInt()
+
+                var fr = "--"
+                var tp = "--"
+                var zr = "--"
+                var gv = "--"
+                var cSize = 0L
+
+                if (hasRoot) {
+                    fr = RootEngine.getCpuFreqInfo()
+                    tp = RootEngine.getCpuTemp()
+                    zr = RootEngine.getZramInfo()
+                    gv = RootEngine.getCurrentGovernor()
+                    cSize = RootEngine.getEstimatedCacheSizeMb()
                 }
+
+                withContext(Dispatchers.Main) {
+                    liveAvailRamMb = avail
+                    ramUsedPercent = usedPct
+                    cpuFreq = fr
+                    cpuTemp = tp
+                    zramInfo = zr
+                    currentGov = gv
+                    cacheSizeMb = cSize
+                }
+                delay(1500) // Poll real-time setiap 1.5s
             }
         }
     }
@@ -81,14 +133,13 @@ class MainViewModel : ViewModel() {
     fun refresh(ctx: Context) = init(ctx)
     fun requestShizuku() { ShizukuEngine.requestPerm() }
 
-    // ── Apply profile ─────────────────────────────────────────────────
-
     fun applyProfile(profile: OptProfile) {
         if (isOptimizing) return
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                isOptimizing = true; progress = 0f; statusMsg = "Starting…"
+                isOptimizing = true; progress = 0f; statusMsg = "Menjalankan optimasi..."
             }
+
             val rootCmds: List<CmdResult> = if (hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> RootEngine.applyPerformance()
                 OptProfile.BALANCED    -> RootEngine.applyBalanced()
@@ -107,28 +158,27 @@ class MainViewModel : ViewModel() {
 
             for (r in rootCmds) {
                 done++
-                val short = r.cmd.take(44) + if (r.cmd.length > 44) "…" else ""
                 withContext(Dispatchers.Main) {
                     progress = done.toFloat() / total
-                    statusMsg = "[root] $short"
+                    statusMsg = "[Root] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(80)
+                delay(60)
             }
+
             for (r in shzCmds) {
                 done++
-                val short = r.cmd.take(44) + if (r.cmd.length > 44) "…" else ""
                 withContext(Dispatchers.Main) {
                     progress = done.toFloat() / total
-                    statusMsg = "[adb] $short"
+                    statusMsg = "[ADB] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(80)
+                delay(60)
             }
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "Done ✓  (${newLog.count { it.success }}/${newLog.size} OK)"
+                statusMsg = "Selesai ✓ (${newLog.count { it.success }}/${newLog.size} Berhasil)"
                 activeProfile = profile
                 log = newLog + log
                 isOptimizing = false
@@ -136,38 +186,23 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ── Governor control ──────────────────────────────────────────────
-
     fun setGovernor(gov: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
-                if (r.success) { currentGov = gov; statusMsg = "✓ Governor → $gov" }
-                else statusMsg = "✗ Could not set $gov"
+                if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor → $gov" }
+                else statusMsg = "✗ Gagal set $gov: ${r.output}"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
     }
-
-    // ── Tool helpers ──────────────────────────────────────────────────
 
     fun doRoot(label: String, fn: () -> CmdResult) {
         viewModelScope.launch(Dispatchers.IO) {
             val r = fn()
             withContext(Dispatchers.Main) {
-                statusMsg = if (r.success) "✓ $label" else "✗ $label failed: ${r.output.take(60)}"
+                statusMsg = if (r.success) "✓ $label Berhasil" else "✗ $label Gagal: ${r.output.take(50)}"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
-            }
-        }
-    }
-
-    fun doRootMulti(label: String, fn: () -> List<CmdResult>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val rs = fn()
-            val ok = rs.count { it.success }
-            withContext(Dispatchers.Main) {
-                statusMsg = "✓ $label: $ok/${rs.size} commands OK"
-                log = rs.map { LogEntry(sdf.format(Date()), it.cmd, it.success) } + log
             }
         }
     }
@@ -176,20 +211,22 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val r = fn()
             withContext(Dispatchers.Main) {
-                statusMsg = if (r.success) "✓ $label" else "✗ $label failed"
+                statusMsg = if (r.success) "✓ $label Berhasil" else "✗ $label Gagal"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
     }
 
-    fun doShzMulti(label: String, fn: () -> List<SCmd>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val rs = fn()
-            val ok = rs.count { it.success }
-            withContext(Dispatchers.Main) {
-                statusMsg = "✓ $label: $ok/${rs.size} OK"
-                log = rs.map { LogEntry(sdf.format(Date()), it.cmd, it.success) } + log
-            }
-        }
+    fun copyLogsToClipboard(ctx: Context) {
+        if (log.isEmpty()) return
+        val text = log.joinToString("\n") { "[${it.time}] [${if (it.success) "OK" else "FAIL"}] ${it.cmd}" }
+        val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("MonAi Logs", text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(ctx, "Log berhasil disalin ke Clipboard!", Toast.LENGTH_SHORT).show()
+    }
+
+    fun clearLogHistory() {
+        log = emptyList()
     }
 }

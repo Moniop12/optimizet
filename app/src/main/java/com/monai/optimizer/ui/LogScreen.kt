@@ -1,41 +1,29 @@
 package com.monai.optimizer.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.monai.optimizer.ui.theme.DarkBg
-import com.monai.optimizer.ui.theme.DarkCard
-import com.monai.optimizer.ui.theme.GreenOk
-import com.monai.optimizer.ui.theme.RedErr
-import com.monai.optimizer.ui.theme.TextDisabled
-import com.monai.optimizer.ui.theme.TextPrimary
-import com.monai.optimizer.ui.theme.TextSecondary
+import androidx.compose.ui.unit.sp
+import com.monai.optimizer.ui.theme.*
 
 @Composable
 fun LogScreen(vm: MainViewModel) {
+    val ctx = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -45,64 +33,54 @@ fun LogScreen(vm: MainViewModel) {
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column {
-                Text("Log", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
-                Text(
-                    "${vm.log.size} commands recorded",
-                    color = TextSecondary, style = MaterialTheme.typography.bodyMedium
-                )
+                Text("Log History", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+                Text("${vm.log.size} commands executed", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
-            if (vm.log.isNotEmpty()) {
-                val ok = vm.log.count { it.success }
-                Text(
-                    "$ok/${vm.log.size} OK",
-                    color = GreenOk, style = MaterialTheme.typography.labelMedium
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { vm.copyLogsToClipboard(ctx) }, enabled = vm.log.isNotEmpty()) {
+                    Icon(Icons.Filled.ContentCopy, "Copy Logs", tint = if (vm.log.isNotEmpty()) Cyan400 else TextDisabled)
+                }
+                IconButton(onClick = { vm.clearLogHistory() }, enabled = vm.log.isNotEmpty()) {
+                    Icon(Icons.Filled.Delete, "Clear Logs", tint = if (vm.log.isNotEmpty()) RedErr else TextDisabled)
+                }
             }
         }
 
         if (vm.log.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Filled.History, null, Modifier.size(48.dp), tint = TextDisabled)
-                    Text("No logs yet", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "Apply a profile from the Home tab",
-                        color = TextDisabled, style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+                Text("Belum ada log dieksekusi", color = TextDisabled)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                items(vm.log) { LogCard(it) }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(vm.log) { CompactLogCard(it) }
             }
         }
     }
 }
 
 @Composable
-fun LogCard(e: LogEntry) {
+fun CompactLogCard(e: LogEntry) {
     Card(
         Modifier.fillMaxWidth(),
-        RoundedCornerShape(9.dp),
+        RoundedCornerShape(6.dp),
         CardDefaults.cardColors(containerColor = DarkCard)
     ) {
-        Row(Modifier.padding(11.dp), Arrangement.spacedBy(9.dp), Alignment.CenterVertically) {
+        Row(Modifier.padding(8.dp), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
             Icon(
                 if (e.success) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
-                null,
-                Modifier.size(15.dp),
+                null, Modifier.size(14.dp),
                 tint = if (e.success) GreenOk else RedErr
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    e.cmd.take(72).let { if (e.cmd.length > 72) "$it…" else it },
-                    color = TextPrimary, style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                    e.cmd,
+                    color = TextPrimary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(e.time, color = TextSecondary, style = MaterialTheme.typography.labelSmall)
+                Text(e.time, color = TextDisabled, fontSize = 9.sp)
             }
         }
     }
