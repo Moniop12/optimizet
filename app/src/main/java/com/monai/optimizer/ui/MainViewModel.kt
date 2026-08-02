@@ -8,11 +8,13 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.monai.optimizer.optimizer.ChargingEngine
 import com.monai.optimizer.optimizer.CmdResult
 import com.monai.optimizer.optimizer.DeviceAnalyzer
 import com.monai.optimizer.optimizer.DeviceSpec
@@ -46,13 +48,21 @@ class MainViewModel : ViewModel() {
         private set
     var isLiveServiceRunning by mutableStateOf(false)
         private set
-    var progress by mutableStateOf(0f)
+    var progress by mutableFloatStateOf(0f)
         private set
     var statusMsg by mutableStateOf("")
         private set
     var activeProfile by mutableStateOf<OptProfile?>(null)
         private set
     var log by mutableStateOf<List<LogEntry>>(emptyList())
+        private set
+
+    // Smart Charging Control States
+    var isChargeLimitEnabled by mutableStateOf(false)
+        private set
+    var chargeLimitPct by mutableStateOf(80f)
+        private set
+    var chargeSpeedMa by mutableStateOf(1500)
         private set
 
     val runningTools = mutableStateMapOf<String, Boolean>()
@@ -136,6 +146,31 @@ class MainViewModel : ViewModel() {
                     cacheSizeMb = cSize
                 }
                 delay(1500)
+            }
+        }
+    }
+
+    fun setChargeLimit(enabled: Boolean, pct: Float) {
+        isChargeLimitEnabled = enabled
+        chargeLimitPct = pct
+        MonAiService.isChargeLimitEnabled = enabled
+        MonAiService.chargeLimitPct = pct.toInt()
+        if (!enabled && hasRoot) {
+            viewModelScope.launch(Dispatchers.IO) {
+                ChargingEngine.setChargingEnabled(true)
+                MonAiService.isChargePausedByLimit = false
+            }
+        }
+    }
+
+    fun setChargeSpeed(mA: Int) {
+        chargeSpeedMa = mA
+        if (hasRoot) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val r = ChargingEngine.setChargeCurrentMaxMa(mA)
+                withContext(Dispatchers.Main) {
+                    statusMsg = if (r.success) "✓ Kecepatan Cas -> $mA mA" else "✗ Kernel tidak mendukung batasan mA"
+                }
             }
         }
     }
@@ -249,7 +284,7 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
-                if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor → $gov" }
+                if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor -> $gov" }
                 else statusMsg = "✗ Gagal set $gov"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }

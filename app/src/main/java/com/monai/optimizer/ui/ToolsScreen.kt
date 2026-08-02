@@ -44,7 +44,54 @@ fun ToolsScreen(vm: MainViewModel) {
             }
         }
 
-        // RESET TO DEFAULTS CARD
+        // KARTU SMART CHARGING CONTROL
+        Card(
+            Modifier.fillMaxWidth(), RoundedCornerShape(10.dp),
+            CardDefaults.cardColors(containerColor = GlassCard),
+            border = BorderStroke(1.dp, EmeraldGlow.copy(alpha = 0.4f))
+        ) {
+            Column(Modifier.padding(12.dp), Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.BatteryChargingFull, null, tint = EmeraldGlow, modifier = Modifier.size(20.dp))
+                        Text("Smart Charging Control", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Switch(
+                        checked = vm.isChargeLimitEnabled,
+                        onCheckedChange = { vm.setChargeLimit(it, vm.chargeLimitPct) },
+                        enabled = vm.hasRoot
+                    )
+                }
+
+                if (!vm.hasRoot) {
+                    Text("Kontrol pengisian hardware membutuhkan Akses Root!", color = RedErr, fontSize = 10.sp)
+                } else {
+                    Text("Batas Stop Pengisian: ${vm.chargeLimitPct.toInt()}%", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = vm.chargeLimitPct,
+                        onValueChange = { vm.setChargeLimit(vm.isChargeLimitEnabled, it) },
+                        valueRange = 70f..95f,
+                        steps = 4,
+                        enabled = vm.isChargeLimitEnabled
+                    )
+
+                    HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+
+                    Text("Kecepatan Cas (Milliampere Limit):", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), Arrangement.spacedBy(4.dp)) {
+                        listOf(500 to "500mA (Slow)", 1000 to "1000mA", 1500 to "1500mA", 2000 to "2000mA (Fast)", 3000 to "Max Speed").forEach { (mA, label) ->
+                            FilterChip(
+                                selected = vm.chargeSpeedMa == mA,
+                                onClick = { vm.setChargeSpeed(mA) },
+                                label = { Text(label, fontSize = 10.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // KARTU RESET TO DEFAULTS
         Card(
             Modifier.fillMaxWidth(), RoundedCornerShape(10.dp),
             CardDefaults.cardColors(containerColor = RedErr.copy(alpha = 0.08f)),

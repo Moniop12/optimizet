@@ -4,6 +4,7 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
@@ -12,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
+import com.monai.optimizer.optimizer.ChargingEngine
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.ShizukuEngine
@@ -43,6 +45,12 @@ class MonAiService : Service() {
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
 
         var currentActiveProfile: OptProfile? = null
+
+        // Smart Charging Service State
+        var isChargeLimitEnabled = false
+        var chargeLimitPct = 80
+        var isThermalProtectEnabled = false
+        var isChargePausedByLimit = false
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -74,6 +82,11 @@ class MonAiService : Service() {
                     currentActiveProfile = profile
                     scope.launch {
                         applyProfileFromService(profile)
+                        // Trigger update notifikasi seketika setelah tombol ditekan
+                        val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot())
+                        val bat = getBatteryPowerInfo(this@MonAiService)
+                        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), bat))
                     }
                 }
             }
@@ -89,6 +102,21 @@ class MonAiService : Service() {
                 val cpuFreq = if (hasRoot) RootEngine.getCpuFreqInfo() else "--"
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
+
+                // Logic Smart Charge Limit & Thermal Protect
+                if (hasRoot && isChargeLimitEnabled) {
+                    if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
+                        ChargingEngine.setChargingEnabled(false)
+                        isChargePausedByLimit = true
+                    } else if (bat.percentage < (chargeLimitPct - 3) && isChargePausedByLimit) {
+                        ChargingEngine.setChargingEnabled(true)
+                        isChargePausedByLimit = false
+                    }
+                }
+
+                if (hasRoot && isThermalProtectEnabled && bat.isCharging && bat.tempC > 42.0) {
+                    ChargingEngine.setChargeCurrentMaxMa(500) // Turunkan arus ke 500mA saat dingin
+                }
 
                 val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -242,12 +270,29 @@ class MonAiService : Service() {
 
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
-        val powerText = if (bat.isCharging) "+${abs(bat.currentMa)} mA (Charging)" else "-${abs(bat.currentMa)} mA (Discharge)"
+
+        val powerText = if (isChargePausedByLimit) {
+            "Paused (Limit $chargeLimitPct%)"
+        } else if (bat.isCharging) {
+            "+${abs(bat.currentMa)} mA (Charging)"
+        } else {
+            "-${abs(bat.currentMa)} mA (Discharge)"
+        }
+
         val powerColor = ContextCompat.getColor(
             this,
             if (bat.isCharging) R.color.notif_power_charge else R.color.notif_power_discharge
         )
         val formattedTemp = "%.1f".format(bat.tempC)
+
+        // Indikator Tombol Aktif (Tanda Centang ✓)
+        val isPerf = currentActiveProfile == OptProfile.PERFORMANCE
+        val isBal = currentActiveProfile == OptProfile.BALANCED
+        val isSave = currentActiveProfile == OptProfile.BATTERY
+
+        val labelPerf = if (isPerf) "✓ PERF" else "PERF"
+        val labelBal = if (isBal) "✓ BALANCED" else "BALANCED"
+        val labelSave = if (isSave) "✓ SAVER" else "SAVER"
 
         // Populate Collapsed View
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
@@ -259,7 +304,7 @@ class MonAiService : Service() {
             setTextColor(R.id.txt_col_power, powerColor)
         }
 
-        // Populate Expanded View
+        // Populate Expanded View dengan Tanda Centang
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
             setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
@@ -267,6 +312,10 @@ class MonAiService : Service() {
             setTextViewText(R.id.txt_exp_cpu_val, "$cpuFreq ($cpuTemp)")
             setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
             setTextColor(R.id.txt_exp_power_val, powerColor)
+
+            setTextViewText(R.id.btn_notif_perf, labelPerf)
+            setTextViewText(R.id.btn_notif_bal, labelBal)
+            setTextViewText(R.id.btn_notif_save, labelSave)
 
             setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
             setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)
