@@ -1,6 +1,7 @@
 package com.monai.optimizer.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,10 +11,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -32,10 +35,10 @@ fun HomeScreen(vm: MainViewModel) {
             .fillMaxSize()
             .background(DarkBg)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Header
+        // Top Bar Header
         Row(
             Modifier.fillMaxWidth(),
             Arrangement.SpaceBetween,
@@ -44,91 +47,98 @@ fun HomeScreen(vm: MainViewModel) {
             Column {
                 Text(
                     "MonAi",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        color = Cyan400,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 32.sp
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        color = CyanGlow,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 28.sp
                     )
                 )
-                Text("Real-Time AI Optimizer", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                Text("AI Engine & Hardware Tuner", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
+
+            // Refresh Button dengan Animasi Spin 360 Derajat
+            val rotation by animateFloatAsState(
+                targetValue = if (vm.isRefreshing) 360f else 0f,
+                animationSpec = tween(durationMillis = 600, easing = LinearEasing),
+                label = "Spin"
+            )
             IconButton(onClick = { vm.refresh(ctx) }) {
-                Icon(Icons.Filled.Refresh, "Refresh", tint = Cyan400)
+                Icon(Icons.Filled.Refresh, "Refresh", tint = CyanGlow, modifier = Modifier.rotate(rotation))
             }
         }
 
-        DeviceCard(vm)
+        DeviceGlassCard(vm)
 
         vm.spec?.let { AiRecCard(it.recommended, vm) }
 
         Text(
             "OPTIMIZATION PROFILES",
             color = TextSecondary,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(top = 4.dp)
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(top = 2.dp)
         )
 
-        ProfileCard("Performance", "Max CPU Frequency · Conservative Swap", Icons.Filled.FlashOn, OrangeAcc, OptProfile.PERFORMANCE, vm)
-        ProfileCard("Balanced", "Smart Schedutil · Smooth Balance", Icons.Filled.Tune, Cyan500, OptProfile.BALANCED, vm)
-        ProfileCard("Battery Saver", "Powersave CPU · Deep Doze Engine", Icons.Filled.BatteryFull, GreenOk, OptProfile.BATTERY, vm)
+        ProfileCard("Performance", "Max CPU Frequency · Low Latency I/O", Icons.Filled.FlashOn, OrangeGlow, OptProfile.PERFORMANCE, vm)
+        ProfileCard("Balanced", "Smart Schedutil · Balanced Efficiency", Icons.Filled.Tune, CyanGlow, OptProfile.BALANCED, vm)
+        ProfileCard("Battery Saver", "Powersave CPU · Deep Doze Engine", Icons.Filled.BatteryFull, EmeraldGlow, OptProfile.BATTERY, vm)
 
-        AnimatedVisibility(vm.isOptimizing) { ProgressCard(vm) }
-        Spacer(Modifier.height(12.dp))
+        AnimatedVisibility(vm.isOptimizing) { ProgressGlassCard(vm) }
+        Spacer(Modifier.height(10.dp))
     }
 }
 
 @Composable
-fun DeviceCard(vm: MainViewModel) {
+fun DeviceGlassCard(vm: MainViewModel) {
     val s = vm.spec
     Card(
         Modifier.fillMaxWidth(),
-        RoundedCornerShape(16.dp),
-        CardDefaults.cardColors(containerColor = DarkCard),
-        border = BorderStroke(1.dp, DarkSurfaceVar)
+        RoundedCornerShape(14.dp),
+        CardDefaults.cardColors(containerColor = GlassCard),
+        border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(GlassBorder, Color.Transparent)))
     ) {
-        Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(14.dp), Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Device Status", color = TextSecondary, style = MaterialTheme.typography.labelMedium)
-                if (s == null) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Cyan400)
+                Text("Device Architecture", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
+                if (s == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = CyanGlow)
             }
 
             if (s != null) {
-                Text("${s.brand} ${s.model}", color = TextPrimary, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                Text("${s.brand} ${s.model}", color = TextPrimary, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 
                 Text(
                     "Android ${s.android} (API ${s.api})  •  ${s.cores} Cores\n" +
                     "Physical RAM: ${s.physicalRamGb} GB (${s.totalRamMb} MB Usable)",
-                    color = TextSecondary, style = MaterialTheme.typography.bodyMedium
+                    color = TextSecondary, style = MaterialTheme.typography.bodySmall
                 )
 
                 if (s.chipset.isNotBlank()) {
-                    Text("${s.chipset}  •  Max ${s.maxFreqMhz}MHz", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text("${s.chipset}  •  Max ${s.maxFreqMhz}MHz", color = TextSecondary, fontSize = 11.sp)
                 }
 
-                HorizontalDivider(color = DarkSurfaceVar, thickness = 1.dp)
+                HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
 
-                // Permissions Badge
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusChip("ROOT ${if (s.hasRoot) "✓" else "✗"}", s.hasRoot, if (s.hasRoot) GreenOk else RedErr)
-                    StatusChip("SHIZUKU ${if (s.hasShizuku) "✓" else "✗"}", s.hasShizuku, if (s.hasShizuku) Cyan400 else TextDisabled)
-                    if (!s.hasShizuku) {
-                        TextButton(onClick = { vm.requestShizuku() }) {
-                            Text("Grant ADB", color = Cyan400, fontSize = 11.sp)
+                // Permissions Badges
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    StatusChip("ROOT ${if (s.hasRoot) "✓" else "✗"}", s.hasRoot, if (s.hasRoot) EmeraldGlow else RedErr)
+                    StatusChip("SHIZUKU ${if (s.hasShizuku) "✓" else "✗"}", s.hasShizuku, if (s.hasShizuku) CyanGlow else TextDisabled)
+                    if (!s.hasShizuku && !s.hasRoot) {
+                        TextButton(onClick = { vm.requestShizuku() }, contentPadding = PaddingValues(0.dp)) {
+                            Text("Grant ADB", color = CyanGlow, fontSize = 11.sp)
                         }
                     }
                 }
 
-                // Live Stats Gauge
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                // Live RAM Gauge
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("RAM Usage (${vm.liveAvailRamMb}MB Free)", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
-                        Text("${vm.ramUsedPercent}%", color = if (vm.ramUsedPercent > 85) RedErr else Cyan400, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                        Text("${vm.ramUsedPercent}%", color = if (vm.ramUsedPercent > 85) RedErr else CyanGlow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
                     }
                     LinearProgressIndicator(
                         progress = { vm.ramUsedPercent / 100f },
-                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                        color = if (vm.ramUsedPercent > 85) RedErr else Cyan400,
-                        trackColor = DarkSurfaceVar
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+                        color = if (vm.ramUsedPercent > 85) RedErr else CyanGlow,
+                        trackColor = DarkBg
                     )
                 }
 
@@ -141,7 +151,7 @@ fun DeviceCard(vm: MainViewModel) {
                     }
                 }
             } else {
-                Text("Analyzing hardware configuration...", color = TextSecondary)
+                Text("Analyzing hardware configuration...", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -149,44 +159,45 @@ fun DeviceCard(vm: MainViewModel) {
 
 @Composable fun StatusChip(label: String, active: Boolean, color: Color) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = color.copy(alpha = if (active) 0.15f else 0.08f),
-        border = BorderStroke(1.dp, color.copy(alpha = if (active) 0.5f else 0.2f))
+        shape = RoundedCornerShape(16.dp),
+        color = color.copy(alpha = if (active) 0.12f else 0.05f),
+        border = BorderStroke(1.dp, color.copy(alpha = if (active) 0.4f else 0.15f))
     ) {
-        Text(label, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text(label, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = TextSecondary, style = MaterialTheme.typography.labelSmall)
-        Text(value, color = TextPrimary, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = TextSecondary, fontSize = 10.sp)
+        Text(value, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable fun AiRecCard(profile: OptProfile, vm: MainViewModel) {
     val (label, desc, accent) = when (profile) {
-        OptProfile.PERFORMANCE -> Triple("Performance", "Perangkat High-End — Maksimalkan Throughput", OrangeAcc)
-        OptProfile.BALANCED    -> Triple("Balanced", "Mid-Range — Keseimbangan Performa & Baterai", Cyan500)
-        OptProfile.BATTERY     -> Triple("Battery Saver", "RAM Terbatas — Hemat Sumber Daya", GreenOk)
+        OptProfile.PERFORMANCE -> Triple("Performance", "High-End Hardware — Maksimal Throughput", OrangeGlow)
+        OptProfile.BALANCED    -> Triple("Balanced", "Mid-Range — Keseimbangan Performa", CyanGlow)
+        OptProfile.BATTERY     -> Triple("Battery Saver", "RAM Terbatas — Conserve System", EmeraldGlow)
     }
     Card(
-        Modifier.fillMaxWidth(), RoundedCornerShape(14.dp),
+        Modifier.fillMaxWidth(), RoundedCornerShape(12.dp),
         CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.08f)),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.3f))
     ) {
-        Row(Modifier.padding(14.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
-            Icon(Icons.Filled.AutoAwesome, null, Modifier.size(24.dp), tint = accent)
+        Row(Modifier.padding(12.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
+            Icon(Icons.Filled.AutoAwesome, null, Modifier.size(22.dp), tint = accent)
             Column(Modifier.weight(1f)) {
-                Text("AI Rec: $label", color = accent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("AI Rec: $label", color = accent, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(desc, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
             Button(
                 onClick = { vm.applyProfile(profile) },
                 enabled = !vm.isOptimizing,
                 colors = ButtonDefaults.buttonColors(containerColor = accent),
-                shape = RoundedCornerShape(8.dp)
-            ) { Text("Apply", color = Color.White) }
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) { Text("Apply", color = Color.White, fontSize = 12.sp) }
         }
     }
 }
@@ -194,16 +205,16 @@ fun DeviceCard(vm: MainViewModel) {
 @Composable fun ProfileCard(title: String, desc: String, icon: ImageVector, accent: Color, profile: OptProfile, vm: MainViewModel) {
     val active = vm.activeProfile == profile
     Card(
-        Modifier.fillMaxWidth(), RoundedCornerShape(12.dp),
-        CardDefaults.cardColors(containerColor = if (active) accent.copy(alpha = 0.12f) else DarkCard),
-        border = BorderStroke(1.dp, if (active) accent else DarkSurfaceVar)
+        Modifier.fillMaxWidth(), RoundedCornerShape(10.dp),
+        CardDefaults.cardColors(containerColor = if (active) accent.copy(alpha = 0.1f) else GlassCard),
+        border = BorderStroke(1.dp, if (active) accent else GlassBorder)
     ) {
-        Row(Modifier.padding(12.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(22.dp), tint = accent)
+        Row(Modifier.padding(10.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(20.dp), tint = accent)
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(title, color = TextPrimary, style = MaterialTheme.typography.titleMedium)
-                    if (active) Text("ACTIVE", color = accent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(title, color = TextPrimary, style = MaterialTheme.typography.titleSmall)
+                    if (active) Text("ACTIVE", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
                 Text(desc, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
@@ -211,17 +222,18 @@ fun DeviceCard(vm: MainViewModel) {
                 onClick = { vm.applyProfile(profile) },
                 enabled = !vm.isOptimizing,
                 colors = ButtonDefaults.buttonColors(containerColor = accent),
-                shape = RoundedCornerShape(8.dp)
-            ) { Text("Apply") }
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            ) { Text("Apply", fontSize = 11.sp) }
         }
     }
 }
 
-@Composable fun ProgressCard(vm: MainViewModel) {
-    Card(Modifier.fillMaxWidth(), RoundedCornerShape(12.dp), CardDefaults.cardColors(containerColor = DarkCard)) {
-        Column(Modifier.padding(14.dp), Arrangement.spacedBy(8.dp)) {
-            Text(vm.statusMsg, color = Cyan400, style = MaterialTheme.typography.bodyMedium)
-            LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth().height(4.dp), color = Cyan400)
+@Composable fun ProgressGlassCard(vm: MainViewModel) {
+    Card(Modifier.fillMaxWidth(), RoundedCornerShape(10.dp), CardDefaults.cardColors(containerColor = GlassCard)) {
+        Column(Modifier.padding(12.dp), Arrangement.spacedBy(6.dp)) {
+            Text(vm.statusMsg, color = CyanGlow, style = MaterialTheme.typography.bodySmall)
+            LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth().height(4.dp), color = CyanGlow)
         }
     }
 }

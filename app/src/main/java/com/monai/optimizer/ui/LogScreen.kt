@@ -28,17 +28,17 @@ fun LogScreen(vm: MainViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column {
-                Text("Log History", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
-                Text("${vm.log.size} commands executed", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("Execution Logs", style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
+                Text("${vm.log.size} commands recorded", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 IconButton(onClick = { vm.copyLogsToClipboard(ctx) }, enabled = vm.log.isNotEmpty()) {
-                    Icon(Icons.Filled.ContentCopy, "Copy Logs", tint = if (vm.log.isNotEmpty()) Cyan400 else TextDisabled)
+                    Icon(Icons.Filled.ContentCopy, "Copy Logs", tint = if (vm.log.isNotEmpty()) CyanGlow else TextDisabled)
                 }
                 IconButton(onClick = { vm.clearLogHistory() }, enabled = vm.log.isNotEmpty()) {
                     Icon(Icons.Filled.Delete, "Clear Logs", tint = if (vm.log.isNotEmpty()) RedErr else TextDisabled)
@@ -48,10 +48,10 @@ fun LogScreen(vm: MainViewModel) {
 
         if (vm.log.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text("Belum ada log dieksekusi", color = TextDisabled)
+                Text("Belum ada log dieksekusi", color = TextDisabled, style = MaterialTheme.typography.bodySmall)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(vm.log) { CompactLogCard(it) }
             }
         }
@@ -63,19 +63,19 @@ fun CompactLogCard(e: LogEntry) {
     Card(
         Modifier.fillMaxWidth(),
         RoundedCornerShape(6.dp),
-        CardDefaults.cardColors(containerColor = DarkCard)
+        CardDefaults.cardColors(containerColor = GlassCard)
     ) {
         Row(Modifier.padding(8.dp), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
             Icon(
                 if (e.success) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
-                null, Modifier.size(14.dp),
-                tint = if (e.success) GreenOk else RedErr
+                null, Modifier.size(12.dp),
+                tint = if (e.success) EmeraldGlow else RedErr
             )
             Column(Modifier.weight(1f)) {
                 Text(
                     e.cmd,
                     color = TextPrimary,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis

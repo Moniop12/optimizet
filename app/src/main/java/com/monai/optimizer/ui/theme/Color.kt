@@ -2,25 +2,27 @@ package com.monai.optimizer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ── Cyan palette ──────────────────────────────
-val Cyan400  = Color(0xFF26C6DA)
-val Cyan500  = Color(0xFF00BCD4)
-val Cyan700  = Color(0xFF0097A7)
-val Cyan900  = Color(0xFF006064)
+// ── Glassmorphism Neon Palette ──────────────────────────────
+val CyanGlow     = Color(0xFF00F2FE)
+val Cyan500      = Color(0xFF00C6FF)
+val Cyan900      = Color(0xFF00334E)
 
-// ── Dark backgrounds ──────────────────────────
-val DarkBg         = Color(0xFF060A10)
-val DarkSurface    = Color(0xFF0D1520)
-val DarkSurfaceVar = Color(0xFF152030)
-val DarkCard       = Color(0xFF0F1C2A)
+val EmeraldGlow  = Color(0xFF00F5A0)
+val PurpleGlow   = Color(0xFF7F00FF)
+val OrangeGlow   = Color(0xFFFF5E36)
 
-// ── Text ──────────────────────────────────────
-val TextPrimary   = Color(0xFFE2F0FA)
-val TextSecondary = Color(0xFF8BAEC0)
-val TextDisabled  = Color(0xFF4A6477)
+// ── Dark Glass Backgrounds ──────────────────────────────────
+val DarkBg       = Color(0xFF050811)
+val GlassSurface = Color(0xCC0D1726) // Semi-transparent glass
+val GlassCard    = Color(0xE6121E30)
+val GlassBorder  = Color(0x3300F2FE)
 
-// ── Status ────────────────────────────────────
-val GreenOk   = Color(0xFF4CAF50)
-val RedErr    = Color(0xFFF44336)
-val AmberWarn = Color(0xFFFFC107)
-val OrangeAcc = Color(0xFFFF6D00)
+// ── Typography ──────────────────────────────────────────────
+val TextPrimary   = Color(0xFFF0F6FC)
+val TextSecondary = Color(0xFF8B9CB0)
+val TextDisabled  = Color(0xFF435164)
+
+// ── Status Colors ───────────────────────────────────────────
+val GreenOk   = Color(0xFF00F5A0)
+val RedErr    = Color(0xFFFF4B4B)
+val AmberWarn = Color(0xFFFFB800)

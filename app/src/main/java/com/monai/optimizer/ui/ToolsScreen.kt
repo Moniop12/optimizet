@@ -23,102 +23,172 @@ import com.monai.optimizer.ui.theme.*
 
 @Composable
 fun ToolsScreen(vm: MainViewModel) {
+    // Memeriksa Akses Universal (Root memiliki hak penuh atas fitur Shizuku/ADB)
+    val hasControl = vm.hasRoot || vm.hasShizuku
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Tools", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
-        Text("Manual Tweaks & System Control", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+        Text("System Tools", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
+        Text("Fine-Grained Hardware & OS Control", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
 
         if (vm.statusMsg.isNotEmpty()) {
-            Surface(shape = RoundedCornerShape(8.dp), color = DarkCard, border = BorderStroke(1.dp, Cyan900)) {
-                Text(vm.statusMsg, Modifier.padding(10.dp), color = Cyan400, style = MaterialTheme.typography.bodySmall)
+            Surface(shape = RoundedCornerShape(8.dp), color = GlassCard, border = BorderStroke(1.dp, GlassBorder)) {
+                Text(vm.statusMsg, Modifier.padding(8.dp), color = CyanGlow, style = MaterialTheme.typography.bodySmall)
             }
         }
 
-        // ROOT TOOLS SECTION
-        SecLabel("CPU & MEMORY CONTROL • ROOT")
+        // SECTION 1: CPU & RAM
+        SecLabel("CPU & MEMORY TUNER")
         GovernorCard(vm)
 
-        ToolItem(Icons.Filled.Memory, "Deep RAM Cleaner", "Paksa hentikan proses background & Flush RAM", OrangeAcc, enabled = vm.hasRoot) {
-            vm.doRoot("Clean RAM") { RootEngine.killBgApps() }
+        InteractiveToolItem(
+            toolId = "ram_clean",
+            icon = Icons.Filled.Memory,
+            title = "Deep RAM Cleaner",
+            desc = "Hentikan background task & Flush Memory",
+            accent = OrangeGlow,
+            enabled = hasControl,
+            vm = vm
+        ) {
+            vm.runTool("ram_clean", "Clean RAM", "am kill-all; cmd activity kill-all") { ShizukuEngine.killBgApps() }
         }
 
-        ToolItem(Icons.Filled.DeleteSweep, "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches", OrangeAcc, enabled = vm.hasRoot) {
-            vm.doRoot("Drop Cache") { RootEngine.dropCaches() }
+        InteractiveToolItem(
+            toolId = "drop_cache",
+            icon = Icons.Filled.DeleteSweep,
+            title = "Drop Page Cache",
+            desc = "sync; echo 3 > /proc/sys/vm/drop_caches",
+            accent = OrangeGlow,
+            enabled = vm.hasRoot, // Drop caches butuh Kernel root
+            vm = vm
+        ) {
+            vm.runTool("drop_cache", "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches") { SCmd(false, "", "") }
         }
 
-        ToolItem(Icons.Filled.Delete, "Clear System Caches", "Estimasi cache: ${vm.cacheSizeMb} MB", OrangeAcc, enabled = vm.hasRoot) {
-            vm.doRoot("Clear App Cache") { RootEngine.clearCaches() }
+        InteractiveToolItem(
+            toolId = "clear_cache",
+            icon = Icons.Filled.Delete,
+            title = "Clear System Caches",
+            desc = "Estimasi cache terdeteksi: ${vm.cacheSizeMb} MB",
+            accent = OrangeGlow,
+            enabled = hasControl,
+            vm = vm
+        ) {
+            vm.runTool("clear_cache", "Clear System Caches", "pm trim-caches 999G; cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
-        SecLabel("NETWORK CONTROL • ROOT")
-        ToolItem(Icons.Filled.Speed, "Enable TCP BBR", "Optimasi Buffer Jaringan TCP", Cyan500, enabled = vm.hasRoot) {
-            vm.doRoot("TCP BBR") { RootEngine.enableBBR().first() }
+        // SECTION 2: SHIZUKU / ADB HYBRID TOOLS (Bisa dijalankan lewat ROOT maupun SHIZUKU)
+        SecLabel("SYSTEM UI & ADB TOOLS")
+
+        InteractiveToolItem(
+            toolId = "trim_mem",
+            icon = Icons.Filled.Stop,
+            title = "Trim App Memory (ADB)",
+            desc = "am send-trim-memory all 80",
+            accent = CyanGlow,
+            enabled = hasControl,
+            vm = vm
+        ) {
+            vm.runTool("trim_mem", "Trim Memory", "am send-trim-memory all 80") { ShizukuEngine.trimMemory() }
         }
 
-        // SHIZUKU SECTION
-        SecLabel("SYSTEM UI & ADB • SHIZUKU")
-        ToolItem(Icons.Filled.Stop, "Trim App Memory", "am send-trim-memory all 80", Cyan500, enabled = vm.hasShizuku) {
-            vm.doShz("Trim Memory") { ShizukuEngine.trimMemory() }
+        InteractiveToolItem(
+            toolId = "doze_mode",
+            icon = Icons.Filled.ModeNight,
+            title = "Aggressive Doze Mode",
+            desc = "Paksa HP masuk ke Deep Idle Battery",
+            accent = AmberWarn,
+            enabled = hasControl,
+            vm = vm
+        ) {
+            vm.runTool("doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") { ShizukuEngine.aggressiveDoze().first() }
         }
 
-        ToolItem(Icons.Filled.ModeNight, "Force Aggressive Doze", "Paksa HP masuk ke Deep Idle Battery", AmberWarn, enabled = vm.hasShizuku) {
-            vm.doShz("Aggressive Doze") { ShizukuEngine.aggressiveDoze().first() }
+        InteractiveToolItem(
+            toolId = "tcp_bbr",
+            icon = Icons.Filled.Speed,
+            title = "Enable TCP BBR",
+            desc = "Optimasi congestion control buffer jaringan",
+            accent = EmeraldGlow,
+            enabled = vm.hasRoot,
+            vm = vm
+        ) {
+            vm.runTool("tcp_bbr", "TCP BBR", "sysctl -w net.ipv4.tcp_congestion_control=bbr") { SCmd(false, "", "") }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }
 
 @Composable fun SecLabel(t: String) {
-    Text(t, color = TextSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))
+    Text(t, color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
 }
 
-@Composable fun ToolItem(icon: ImageVector, title: String, desc: String, accent: Color, enabled: Boolean, onClick: () -> Unit) {
+@Composable fun InteractiveToolItem(
+    toolId: String,
+    icon: ImageVector,
+    title: String,
+    desc: String,
+    accent: Color,
+    enabled: Boolean,
+    vm: MainViewModel,
+    onClick: () -> Unit
+) {
+    val isRunning = vm.runningTools[toolId] == true
+
     Card(
         Modifier.fillMaxWidth(), RoundedCornerShape(10.dp),
-        CardDefaults.cardColors(containerColor = DarkCard),
-        border = BorderStroke(1.dp, if (enabled) DarkSurfaceVar else RedErr.copy(alpha = 0.2f))
+        CardDefaults.cardColors(containerColor = GlassCard),
+        border = BorderStroke(1.dp, if (enabled) GlassBorder else RedErr.copy(alpha = 0.2f))
     ) {
-        Row(Modifier.padding(12.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(20.dp), tint = if (enabled) accent else TextDisabled)
+        Row(Modifier.padding(10.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(18.dp), tint = if (enabled) accent else TextDisabled)
             Column(Modifier.weight(1f)) {
-                Text(title, color = if (enabled) TextPrimary else TextDisabled, style = MaterialTheme.typography.titleMedium)
+                Text(title, color = if (enabled) TextPrimary else TextDisabled, style = MaterialTheme.typography.titleSmall)
                 Text(desc, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
+
             OutlinedButton(
-                onClick = onClick, enabled = enabled,
+                onClick = onClick,
+                enabled = enabled && !isRunning,
                 shape = RoundedCornerShape(6.dp),
-                border = BorderStroke(1.dp, if (enabled) accent else TextDisabled)
+                border = BorderStroke(1.dp, if (enabled) accent else TextDisabled),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                modifier = Modifier.height(30.dp)
             ) {
-                Text(if (enabled) "Run" else "Locked", fontSize = 11.sp, color = if (enabled) accent else TextDisabled)
+                if (isRunning) {
+                    CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = accent)
+                } else {
+                    Text(if (enabled) "Run" else "Locked", fontSize = 10.sp, color = if (enabled) accent else TextDisabled)
+                }
             }
         }
     }
 }
 
 @Composable fun GovernorCard(vm: MainViewModel) {
-    Card(Modifier.fillMaxWidth(), RoundedCornerShape(10.dp), CardDefaults.cardColors(containerColor = DarkCard)) {
-        Column(Modifier.padding(12.dp), Arrangement.spacedBy(8.dp)) {
-            Text("CPU Governor Selector", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
-            Text("Active: ${vm.currentGov}", color = Cyan400, style = MaterialTheme.typography.bodySmall)
+    Card(Modifier.fillMaxWidth(), RoundedCornerShape(10.dp), CardDefaults.cardColors(containerColor = GlassCard)) {
+        Column(Modifier.padding(10.dp), Arrangement.spacedBy(6.dp)) {
+            Text("CPU Governor Control", color = TextPrimary, style = MaterialTheme.typography.titleSmall)
+            Text("Active: ${vm.currentGov}", color = CyanGlow, style = MaterialTheme.typography.bodySmall)
 
             if (!vm.hasRoot) {
-                Text("Membutuhkan Akses Root!", color = RedErr, style = MaterialTheme.typography.labelSmall)
+                Text("Membutuhkan Akses Root!", color = RedErr, fontSize = 10.sp)
             } else if (vm.governors.isEmpty()) {
-                Text("Membaca Governor Kernel...", color = TextSecondary)
+                Text("Membaca Governor Kernel...", color = TextSecondary, fontSize = 10.sp)
             } else {
-                Row(Modifier.horizontalScroll(rememberScrollState()), Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), Arrangement.spacedBy(4.dp)) {
                     vm.governors.forEach { gov ->
                         FilterChip(
                             selected = gov == vm.currentGov,
                             onClick = { vm.setGovernor(gov) },
-                            label = { Text(gov, fontSize = 11.sp) }
+                            label = { Text(gov, fontSize = 10.sp) }
                         )
                     }
                 }

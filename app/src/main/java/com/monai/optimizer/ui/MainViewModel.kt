@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -38,6 +39,8 @@ class MainViewModel : ViewModel() {
         private set
     var isOptimizing by mutableStateOf(false)
         private set
+    var isRefreshing by mutableStateOf(false)
+        private set
     var progress by mutableStateOf(0f)
         private set
     var statusMsg by mutableStateOf("")
@@ -47,7 +50,10 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
-    // Real-Time Stats
+    // Menandai tool mana yang sedang beranimasi / diproses
+    val runningTools = mutableStateMapOf<String, Boolean>()
+
+    // Real-Time System Metrics
     var cpuFreq by mutableStateOf("--")
         private set
     var cpuTemp by mutableStateOf("--")
@@ -125,12 +131,20 @@ class MainViewModel : ViewModel() {
                     currentGov = gv
                     cacheSizeMb = cSize
                 }
-                delay(1500) // Poll real-time setiap 1.5s
+                delay(1500)
             }
         }
     }
 
-    fun refresh(ctx: Context) = init(ctx)
+    fun refresh(ctx: Context) {
+        viewModelScope.launch {
+            isRefreshing = true
+            init(ctx)
+            delay(600)
+            isRefreshing = false
+        }
+    }
+
     fun requestShizuku() { ShizukuEngine.requestPerm() }
 
     fun applyProfile(profile: OptProfile) {
@@ -146,7 +160,7 @@ class MainViewModel : ViewModel() {
                 OptProfile.BATTERY     -> RootEngine.applyBattery()
             } else emptyList()
 
-            val shzCmds: List<SCmd> = if (hasShizuku) when (profile) {
+            val shzCmds: List<SCmd> = if (hasShizuku && !hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance()
                 OptProfile.BALANCED    -> ShizukuEngine.applyBalanced()
                 OptProfile.BATTERY     -> ShizukuEngine.applyBattery()
@@ -163,7 +177,7 @@ class MainViewModel : ViewModel() {
                     statusMsg = "[Root] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(60)
+                delay(50)
             }
 
             for (r in shzCmds) {
@@ -173,12 +187,12 @@ class MainViewModel : ViewModel() {
                     statusMsg = "[ADB] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(60)
+                delay(50)
             }
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "Selesai ✓ (${newLog.count { it.success }}/${newLog.size} Berhasil)"
+                statusMsg = "Selesai ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
                 activeProfile = profile
                 log = newLog + log
                 isOptimizing = false
@@ -197,22 +211,29 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun doRoot(label: String, fn: () -> CmdResult) {
+    // Eksekusi Pintar: Menggunakan Root jika ada, atau Shizuku jika Root tidak ada
+    fun runTool(toolId: String, label: String, rootCmd: String, shzFn: () -> SCmd) {
         viewModelScope.launch(Dispatchers.IO) {
-            val r = fn()
-            withContext(Dispatchers.Main) {
-                statusMsg = if (r.success) "✓ $label Berhasil" else "✗ $label Gagal: ${r.output.take(50)}"
-                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
-            }
-        }
-    }
+            withContext(Dispatchers.Main) { runningTools[toolId] = true }
 
-    fun doShz(label: String, fn: () -> SCmd) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val r = fn()
+            var success = false
+            var cmdText = ""
+
+            if (hasRoot) {
+                val r = RootEngine.su(rootCmd)
+                success = r.success
+                cmdText = r.cmd
+            } else if (hasShizuku) {
+                val r = shzFn()
+                success = r.success
+                cmdText = r.cmd
+            }
+
+            delay(300) // Animasi visual minimum
             withContext(Dispatchers.Main) {
-                statusMsg = if (r.success) "✓ $label Berhasil" else "✗ $label Gagal"
-                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
+                runningTools[toolId] = false
+                statusMsg = if (success) "✓ $label Berhasil" else "✗ $label Gagal"
+                log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
             }
         }
     }
@@ -221,12 +242,9 @@ class MainViewModel : ViewModel() {
         if (log.isEmpty()) return
         val text = log.joinToString("\n") { "[${it.time}] [${if (it.success) "OK" else "FAIL"}] ${it.cmd}" }
         val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("MonAi Logs", text)
-        clipboard.setPrimaryClip(clip)
+        clipboard.setPrimaryClip(ClipData.newPlainText("MonAi Logs", text))
         Toast.makeText(ctx, "Log berhasil disalin ke Clipboard!", Toast.LENGTH_SHORT).show()
     }
 
-    fun clearLogHistory() {
-        log = emptyList()
-    }
+    fun clearLogHistory() { log = emptyList() }
 }
