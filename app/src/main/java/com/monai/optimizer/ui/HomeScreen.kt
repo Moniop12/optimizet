@@ -1,5 +1,11 @@
 package com.monai.optimizer.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -24,12 +30,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.ui.theme.*
 
 @Composable
 fun HomeScreen(vm: MainViewModel) {
     val ctx = LocalContext.current
+
+    // Otomatisasi Pop-Up Request Permission Notifikasi Sistem Android 13+
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                vm.toggleLiveService(ctx)
+            } else {
+                Toast.makeText(ctx, "Izin notifikasi diperlukan untuk mengaktifkan fitur ini!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -56,8 +76,15 @@ fun HomeScreen(vm: MainViewModel) {
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Live Service Notification Toggle
-                IconButton(onClick = { vm.toggleLiveService(ctx) }) {
+                // Toggle Service Notifikasi dengan Auto-Permission Request
+                IconButton(onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        vm.toggleLiveService(ctx)
+                    }
+                }) {
                     Icon(
                         Icons.Filled.Notifications, "Live Service",
                         tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextDisabled

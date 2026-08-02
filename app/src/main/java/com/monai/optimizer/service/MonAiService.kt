@@ -107,18 +107,20 @@ class MonAiService : Service() {
                     "-${abs(bat.currentMa)} mA (Discharge)"
                 }
 
-                // 1. Short Text (1 Baris Collapsed View)
+                val formattedTemp = "%.1f".format(bat.tempC)
+
+                // 1. Short Text (Collapsed View)
                 val shortBodyHtml = Html.fromHtml(
                     "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; " +
                     "<b>Power:</b> <font color='$colorPower'><b>$powerText</b></font>",
                     Html.FROM_HTML_MODE_LEGACY
                 )
 
-                // 2. Big Text (3 Baris Expanded View - Rapi & Elegan)
+                // 2. Big Text (Expanded View - 100% Bebas Crash)
                 val bigBodyHtml = Html.fromHtml(
                     "<b>App RAM:</b> <font color='$colorRam'><b>$ramAppStr</b></font> &nbsp;•&nbsp; <b>Mode:</b> <font color='$colorMode'><b>$profileLabel</b></font><br>" +
                     "<b>CPU:</b> <font color='$colorCpu'><b>$cpuFreq</b></font> ($cpuTemp)<br>" +
-                    "<b>Power Stream:</b> <font color='$colorPower'><b>$powerText</b></font> &nbsp;•&nbsp; ${bat.percentage}% (%.1f°C)".format(bat.tempC),
+                    "<b>Power Stream:</b> <font color='$colorPower'><b>$powerText</b></font> &nbsp;•&nbsp; ${bat.percentage}% (${formattedTemp}°C)",
                     Html.FROM_HTML_MODE_LEGACY
                 )
 
@@ -194,7 +196,6 @@ class MonAiService : Service() {
         } catch (_: Exception) { 0L }
     }
 
-    // Mendapatkan Arus Listrik Baterai Real-Time (mA) & Status Charger
     private fun getBatteryPowerInfo(ctx: Context): BatteryPowerInfo {
         return try {
             val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
@@ -216,7 +217,7 @@ class MonAiService : Service() {
             }
 
             var currentMa = if (abs(currentNow) > 10000) currentNow / 1000 else currentNow
-            if (currentMa == 0) currentMa = 250 // Fallback estimasi normal
+            if (currentMa == 0) currentMa = 250
 
             BatteryPowerInfo(isCharging, currentMa, pct, tempC)
         } catch (_: Exception) {
