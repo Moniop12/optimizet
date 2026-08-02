@@ -56,7 +56,7 @@ object DeviceAnalyzer {
         )
     }
 
-    // Convert usable RAM (for example 3043MB) into an estimated marketed physical RAM tier (4GB)
+    // Converts usable RAM (e.g. 3043MB) into the estimated manufacturer physical RAM (4GB)
     private fun calculatePhysicalRamGb(usableMb: Long): Int {
         val gb = usableMb / 1024.0
         return when {

@@ -12,4 +12,8 @@
     <color name="notif_btn_perf_bg">#25FF8A65</color>
     <color name="notif_btn_bal_bg">#2538BDF8</color>
     <color name="notif_btn_save_bg">#2534D399</color>
+
+    <!-- Badge & Divider Dark Mode -->
+    <color name="notif_badge_bg">#2000F2FE</color>
+    <color name="notif_divider">#26FFFFFF</color>
 </resources>

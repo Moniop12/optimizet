@@ -36,7 +36,7 @@ object RootEngine {
     fun setGovernor(gov: String): CmdResult {
         val available = getGovernors()
         if (available.isNotEmpty() && !available.contains(gov)) {
-            return CmdResult(false, "Governor $gov is not supported by this kernel", "setGov $gov")
+            return CmdResult(false, "Governor $gov is not supported by the kernel", "setGov $gov")
         }
         val cmd = "chmod 666 /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null; " +
                   "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
@@ -78,7 +78,7 @@ object RootEngine {
         )
     }
 
-    // ── Reset to stock defaults ───────────────────────────────────────
+    // ── Reset to Factory Defaults ─────────────────────────────────────
 
     fun resetToDefaults(): List<CmdResult> {
         val avail = getGovernors()

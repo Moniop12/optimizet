@@ -57,6 +57,7 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
+    // Smart Charging Control States
     var isChargeLimitEnabled by mutableStateOf(false)
         private set
     var chargeLimitPct by mutableStateOf(80f)
@@ -66,6 +67,7 @@ class MainViewModel : ViewModel() {
 
     val runningTools = mutableStateMapOf<String, Boolean>()
 
+    // Real-Time Stats
     var cpuFreq by mutableStateOf("--")
         private set
     var cpuTemp by mutableStateOf("--")
@@ -89,8 +91,8 @@ class MainViewModel : ViewModel() {
     fun init(ctx: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val root = RootEngine.hasRoot()
-            val shz = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
-            val dev = DeviceAnalyzer.analyze(ctx, root, shz)
+            val shz  = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
+            val dev  = DeviceAnalyzer.analyze(ctx, root, shz)
 
             withContext(Dispatchers.Main) {
                 hasRoot = root
@@ -167,11 +169,7 @@ class MainViewModel : ViewModel() {
             viewModelScope.launch(Dispatchers.IO) {
                 val r = ChargingEngine.setChargeCurrentMaxMa(mA)
                 withContext(Dispatchers.Main) {
-                    statusMsg = if (r.success) {
-                        "✓ Charging current set to $mA mA"
-                    } else {
-                        "✗ The kernel does not support an mA limit on this device"
-                    }
+                    statusMsg = if (r.success) "✓ Charging speed set to $mA mA" else "✗ Kernel does not support current limiting"
                 }
             }
         }
@@ -183,7 +181,7 @@ class MainViewModel : ViewModel() {
             intent.action = MonAiService.ACTION_STOP
             ctx.startService(intent)
             isLiveServiceRunning = false
-            Toast.makeText(ctx, "Live service stopped", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Live Service Stopped", Toast.LENGTH_SHORT).show()
         } else {
             intent.action = MonAiService.ACTION_START
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -192,7 +190,7 @@ class MainViewModel : ViewModel() {
                 ctx.startService(intent)
             }
             isLiveServiceRunning = true
-            Toast.makeText(ctx, "Live AI notification enabled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Live AI Notification Enabled!", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -205,29 +203,25 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun requestShizuku() {
-        ShizukuEngine.requestPerm()
-    }
+    fun requestShizuku() { ShizukuEngine.requestPerm() }
 
     fun applyProfile(profile: OptProfile) {
         if (isOptimizing) return
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                isOptimizing = true
-                progress = 0f
-                statusMsg = "Running optimization..."
+                isOptimizing = true; progress = 0f; statusMsg = "Running optimization..."
             }
 
             val rootCmds: List<CmdResult> = if (hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> RootEngine.applyPerformance()
-                OptProfile.BALANCED -> RootEngine.applyBalanced()
-                OptProfile.BATTERY -> RootEngine.applyBattery()
+                OptProfile.BALANCED    -> RootEngine.applyBalanced()
+                OptProfile.BATTERY     -> RootEngine.applyBattery()
             } else emptyList()
 
             val shzCmds: List<SCmd> = if (hasShizuku && !hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance()
-                OptProfile.BALANCED -> ShizukuEngine.applyBalanced()
-                OptProfile.BATTERY -> ShizukuEngine.applyBattery()
+                OptProfile.BALANCED    -> ShizukuEngine.applyBalanced()
+                OptProfile.BATTERY     -> ShizukuEngine.applyBattery()
             } else emptyList()
 
             val total = (rootCmds.size + shzCmds.size).coerceAtLeast(1)
@@ -256,7 +250,7 @@ class MainViewModel : ViewModel() {
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "Completed ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
+                statusMsg = "Done ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
                 activeProfile = profile
                 MonAiService.currentActiveProfile = profile
                 log = newLog + log
@@ -269,9 +263,7 @@ class MainViewModel : ViewModel() {
         if (isOptimizing) return
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                isOptimizing = true
-                progress = 0f
-                statusMsg = "Restoring stock defaults..."
+                isOptimizing = true; progress = 0f; statusMsg = "Restoring factory defaults..."
             }
 
             val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
@@ -279,7 +271,7 @@ class MainViewModel : ViewModel() {
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "✓ Reset to stock defaults completed"
+                statusMsg = "✓ Successfully reset to factory defaults!"
                 activeProfile = null
                 MonAiService.currentActiveProfile = null
                 log = newLog + log
@@ -292,12 +284,8 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
-                if (r.success) {
-                    currentGov = gov
-                    statusMsg = "✓ CPU governor changed to $gov"
-                } else {
-                    statusMsg = "✗ Failed to change governor to $gov"
-                }
+                if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor -> $gov" }
+                else statusMsg = "✗ Failed to set $gov"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
@@ -323,7 +311,7 @@ class MainViewModel : ViewModel() {
             delay(200)
             withContext(Dispatchers.Main) {
                 runningTools[toolId] = false
-                statusMsg = if (success) "✓ $label completed" else "✗ $label failed"
+                statusMsg = if (success) "✓ $label succeeded" else "✗ $label failed"
                 log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
             }
         }
@@ -334,10 +322,8 @@ class MainViewModel : ViewModel() {
         val text = log.joinToString("\n") { "[${it.time}] [${if (it.success) "OK" else "FAIL"}] ${it.cmd}" }
         val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("MonAi Logs", text))
-        Toast.makeText(ctx, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, "Logs copied to clipboard!", Toast.LENGTH_SHORT).show()
     }
 
-    fun clearLogHistory() {
-        log = emptyList()
-    }
+    fun clearLogHistory() { log = emptyList() }
 }

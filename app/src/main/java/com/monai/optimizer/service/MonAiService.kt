@@ -82,7 +82,7 @@ class MonAiService : Service() {
                     currentActiveProfile = profile
                     scope.launch {
                         applyProfileFromService(profile)
-                        // Refresh the notification immediately after a quick action is tapped
+                        // Trigger an immediate notification refresh right after the button tap
                         val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot())
                         val bat = getBatteryPowerInfo(this@MonAiService)
                         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -115,7 +115,7 @@ class MonAiService : Service() {
                 }
 
                 if (hasRoot && isThermalProtectEnabled && bat.isCharging && bat.tempC > 42.0) {
-                    ChargingEngine.setChargeCurrentMaxMa(500) // Reduce current to 500mA under thermal protection
+                    ChargingEngine.setChargeCurrentMaxMa(500) // Turunkan arus ke 500mA saat dingin
                 }
 
                 val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
@@ -294,7 +294,12 @@ class MonAiService : Service() {
         val labelBal = if (isBal) "✓ BALANCED" else "BALANCED"
         val labelSave = if (isSave) "✓ SAVER" else "SAVER"
 
-        // Populate Collapsed View
+        val perfColor = ContextCompat.getColor(this, R.color.notif_power_discharge)
+        val balColor  = ContextCompat.getColor(this, R.color.notif_cpu_color)
+        val saveColor = ContextCompat.getColor(this, R.color.notif_power_charge)
+        val whiteColor = android.graphics.Color.WHITE
+
+        // Populate collapsed view
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
             setTextViewText(R.id.txt_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_mode_badge, profileLabel)
@@ -304,7 +309,7 @@ class MonAiService : Service() {
             setTextColor(R.id.txt_col_power, powerColor)
         }
 
-        // Populate the expanded view with active-state checkmarks
+        // Populate expanded view with active-state checkmarks
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
             setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
@@ -316,6 +321,16 @@ class MonAiService : Service() {
             setTextViewText(R.id.btn_notif_perf, labelPerf)
             setTextViewText(R.id.btn_notif_bal, labelBal)
             setTextViewText(R.id.btn_notif_save, labelSave)
+
+            // Swap to a solid filled pill + white label when a profile is the active one,
+            // otherwise keep the subtle tinted "inactive" pill.
+            setInt(R.id.btn_notif_perf, "setBackgroundResource", if (isPerf) R.drawable.notif_btn_bg_perf_active else R.drawable.notif_btn_bg_perf)
+            setInt(R.id.btn_notif_bal, "setBackgroundResource", if (isBal) R.drawable.notif_btn_bg_bal_active else R.drawable.notif_btn_bg_bal)
+            setInt(R.id.btn_notif_save, "setBackgroundResource", if (isSave) R.drawable.notif_btn_bg_save_active else R.drawable.notif_btn_bg_save)
+
+            setTextColor(R.id.btn_notif_perf, if (isPerf) whiteColor else perfColor)
+            setTextColor(R.id.btn_notif_bal, if (isBal) whiteColor else balColor)
+            setTextColor(R.id.btn_notif_save, if (isSave) whiteColor else saveColor)
 
             setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
             setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)

@@ -20,56 +20,65 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.monai.optimizer.ui.theme.BrandPrimary
-import com.monai.optimizer.ui.theme.CardSurfaceAlt
+import com.monai.optimizer.ui.theme.CyanGlow
+import com.monai.optimizer.ui.theme.DarkBg
 import com.monai.optimizer.ui.theme.DarkSurface
-import com.monai.optimizer.ui.theme.TextDisabled
-import com.monai.optimizer.ui.theme.TextSecondary
+import com.monai.optimizer.ui.theme.TextTertiary
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    object Home  : Screen("home",  "Overview", Icons.Filled.Home)
-    object Tools : Screen("tools", "Controls", Icons.Filled.Tune)
-    object Log   : Screen("log",   "Activity", Icons.Filled.History)
+    object Home     : Screen("home",     "Home",     Icons.Filled.Home)
+    object Tools    : Screen("tools",    "Tools",    Icons.Filled.Tune)
+    object Log      : Screen("log",      "Log",      Icons.Filled.History)
+    object Charging : Screen("charging", "Charging", Icons.Filled.Home) // not shown in bottom bar
 }
 
 @Composable
 fun MainApp(vm: MainViewModel) {
-    val nav = rememberNavController()
-    val entry by nav.currentBackStackEntryAsState()
+    val nav     = rememberNavController()
+    val entry   by nav.currentBackStackEntryAsState()
     val current = entry?.destination?.route
     val screens = listOf(Screen.Home, Screen.Tools, Screen.Log)
 
     Scaffold(
+        containerColor = DarkBg,
         bottomBar = {
-            NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
-                screens.forEach { s ->
-                    NavigationBarItem(
-                        icon = { Icon(s.icon, s.label) },
-                        label = { Text(s.label) },
-                        selected = current == s.route,
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = BrandPrimary,
-                            selectedTextColor = BrandPrimary,
-                            indicatorColor = CardSurfaceAlt,
-                            unselectedIconColor = TextDisabled,
-                            unselectedTextColor = TextSecondary,
-                        ),
-                        onClick = {
-                            nav.navigate(s.route) {
-                                popUpTo(nav.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    )
+            // Hide the bottom bar on nested detail (sub-menu) screens for a focused feel.
+            if (current != Screen.Charging.route) {
+                NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
+                    screens.forEach { s ->
+                        NavigationBarItem(
+                            icon     = { Icon(s.icon, s.label) },
+                            label    = { Text(s.label) },
+                            selected = current == s.route,
+                            onClick  = {
+                                nav.navigate(s.route) {
+                                    popUpTo(nav.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState    = true
+                                }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = CyanGlow,
+                                selectedTextColor = CyanGlow,
+                                unselectedIconColor = TextTertiary,
+                                unselectedTextColor = TextTertiary,
+                                indicatorColor = CyanGlow.copy(alpha = 0.14f)
+                            )
+                        )
+                    }
                 }
             }
         }
     ) { pad ->
         NavHost(nav, Screen.Home.route, Modifier.padding(pad)) {
             composable(Screen.Home.route) { HomeScreen(vm) }
-            composable(Screen.Tools.route) { ToolsScreen(vm) }
+            composable(Screen.Tools.route) {
+                ToolsScreen(vm, onOpenCharging = { nav.navigate(Screen.Charging.route) })
+            }
             composable(Screen.Log.route) { LogScreen(vm) }
+            composable(Screen.Charging.route) {
+                ChargingScreen(vm, onBack = { nav.popBackStack() })
+            }
         }
     }
 }
