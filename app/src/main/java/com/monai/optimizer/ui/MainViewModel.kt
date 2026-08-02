@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -18,6 +20,7 @@ import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.SCmd
 import com.monai.optimizer.optimizer.ShizukuEngine
+import com.monai.optimizer.service.MonAiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -41,6 +44,8 @@ class MainViewModel : ViewModel() {
         private set
     var isRefreshing by mutableStateOf(false)
         private set
+    var isLiveServiceRunning by mutableStateOf(false)
+        private set
     var progress by mutableStateOf(0f)
         private set
     var statusMsg by mutableStateOf("")
@@ -50,10 +55,9 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
-    // Menandai tool mana yang sedang beranimasi / diproses
     val runningTools = mutableStateMapOf<String, Boolean>()
 
-    // Real-Time System Metrics
+    // Real-Time Stats
     var cpuFreq by mutableStateOf("--")
         private set
     var cpuTemp by mutableStateOf("--")
@@ -136,11 +140,30 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun toggleLiveService(ctx: Context) {
+        val intent = Intent(ctx, MonAiService::class.java)
+        if (isLiveServiceRunning) {
+            intent.action = MonAiService.ACTION_STOP
+            ctx.startService(intent)
+            isLiveServiceRunning = false
+            Toast.makeText(ctx, "Live Service Dihentikan", Toast.LENGTH_SHORT).show()
+        } else {
+            intent.action = MonAiService.ACTION_START
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(intent)
+            } else {
+                ctx.startService(intent)
+            }
+            isLiveServiceRunning = true
+            Toast.makeText(ctx, "Notifikasi Live AI Aktif!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun refresh(ctx: Context) {
         viewModelScope.launch {
             isRefreshing = true
             init(ctx)
-            delay(600)
+            delay(500)
             isRefreshing = false
         }
     }
@@ -177,7 +200,7 @@ class MainViewModel : ViewModel() {
                     statusMsg = "[Root] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(50)
+                delay(40)
             }
 
             for (r in shzCmds) {
@@ -187,13 +210,35 @@ class MainViewModel : ViewModel() {
                     statusMsg = "[ADB] ${r.cmd.take(35)}..."
                 }
                 newLog += LogEntry(sdf.format(Date()), r.cmd, r.success)
-                delay(50)
+                delay(40)
             }
 
             withContext(Dispatchers.Main) {
                 progress = 1f
                 statusMsg = "Selesai ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
                 activeProfile = profile
+                MonAiService.currentActiveProfile = profile
+                log = newLog + log
+                isOptimizing = false
+            }
+        }
+    }
+
+    fun resetToDefaults() {
+        if (isOptimizing) return
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                isOptimizing = true; progress = 0f; statusMsg = "Mengembalikan ke Standar Pabrik..."
+            }
+
+            val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
+            val newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
+
+            withContext(Dispatchers.Main) {
+                progress = 1f
+                statusMsg = "✓ Berhasil Direset ke Default Pabrik!"
+                activeProfile = null
+                MonAiService.currentActiveProfile = null
                 log = newLog + log
                 isOptimizing = false
             }
@@ -205,13 +250,12 @@ class MainViewModel : ViewModel() {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
                 if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor → $gov" }
-                else statusMsg = "✗ Gagal set $gov: ${r.output}"
+                else statusMsg = "✗ Gagal set $gov"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
     }
 
-    // Eksekusi Pintar: Menggunakan Root jika ada, atau Shizuku jika Root tidak ada
     fun runTool(toolId: String, label: String, rootCmd: String, shzFn: () -> SCmd) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) { runningTools[toolId] = true }
@@ -229,7 +273,7 @@ class MainViewModel : ViewModel() {
                 cmdText = r.cmd
             }
 
-            delay(300) // Animasi visual minimum
+            delay(200)
             withContext(Dispatchers.Main) {
                 runningTools[toolId] = false
                 statusMsg = if (success) "✓ $label Berhasil" else "✗ $label Gagal"
@@ -243,7 +287,7 @@ class MainViewModel : ViewModel() {
         val text = log.joinToString("\n") { "[${it.time}] [${if (it.success) "OK" else "FAIL"}] ${it.cmd}" }
         val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("MonAi Logs", text))
-        Toast.makeText(ctx, "Log berhasil disalin ke Clipboard!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, "Log disalin ke Clipboard!", Toast.LENGTH_SHORT).show()
     }
 
     fun clearLogHistory() { log = emptyList() }

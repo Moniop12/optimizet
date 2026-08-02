@@ -18,8 +18,7 @@ object ShizukuEngine {
     fun requestPerm() { try { Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {} }
 
     @Suppress("DiscouragedPrivateApi", "UNCHECKED_CAST")
-    private fun sh(cmd: String): SCmd = try {
-        // Reflection workaround — newProcess is public in source but Kotlin sees it as private
+    fun sh(cmd: String): SCmd = try {
         val method = Class.forName("rikka.shizuku.Shizuku").getMethod(
             "newProcess",
             Array<String>::class.java,
@@ -41,14 +40,14 @@ object ShizukuEngine {
         sh("settings put global transition_animation_scale 0.5"),
         sh("settings put global animator_duration_scale 0.5"),
         sh("settings put global background_process_limit 6"),
-        sh("settings put global wifi_scan_throttle_enabled 1"),
+        sh("settings put global wifi_scan_throttle_enabled 1")
     )
 
     fun applyBalanced(): List<SCmd> = listOf(
         sh("settings put global window_animation_scale 1.0"),
         sh("settings put global transition_animation_scale 1.0"),
         sh("settings put global animator_duration_scale 1.0"),
-        sh("settings put global background_process_limit 5"),
+        sh("settings put global background_process_limit 5")
     )
 
     fun applyBattery(): List<SCmd> = listOf(
@@ -56,24 +55,26 @@ object ShizukuEngine {
         sh("settings put global transition_animation_scale 0"),
         sh("settings put global animator_duration_scale 0"),
         sh("settings put global background_process_limit 3"),
-        sh("settings put global wifi_scan_throttle_enabled 1"),
-        sh("dumpsys deviceidle enable"),
-        sh("dumpsys deviceidle step"),
+        sh("dumpsys deviceidle force-idle")
     )
 
-    // ── Tools ─────────────────────────────────────────────────────────
+    // ── Fixed Trim Memory Engine ──────────────────────────────────────
+
+    fun trimMemory(): SCmd = sh(
+        "cmd package trim-caches 999G 2>/dev/null; " +
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do am send-trim-memory \$pkg COMPLETE 2>/dev/null; done; " +
+        "echo done"
+    )
+
+    fun killBgApps(): SCmd = sh("am kill-all; cmd activity kill-all")
+    fun aggressiveDoze(): List<SCmd> = listOf(
+        sh("dumpsys deviceidle enable"),
+        sh("dumpsys deviceidle force-idle")
+    )
 
     fun setAnimScale(s: Float): SCmd = sh(
         "settings put global window_animation_scale $s && " +
         "settings put global transition_animation_scale $s && " +
         "settings put global animator_duration_scale $s"
-    )
-
-    fun trimMemory(): SCmd = sh("am send-trim-memory all 80")
-    fun killBgApps(): SCmd = sh("am kill-all")
-    fun aggressiveDoze(): List<SCmd> = listOf(
-        sh("dumpsys deviceidle enable"),
-        sh("dumpsys deviceidle step"),
-        sh("cmd deviceidle enable"),
     )
 }

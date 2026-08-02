@@ -44,6 +44,28 @@ fun ToolsScreen(vm: MainViewModel) {
             }
         }
 
+        // RESET TO DEFAULTS CARD
+        Card(
+            Modifier.fillMaxWidth(), RoundedCornerShape(10.dp),
+            CardDefaults.cardColors(containerColor = RedErr.copy(alpha = 0.08f)),
+            border = BorderStroke(1.dp, RedErr.copy(alpha = 0.3f))
+        ) {
+            Row(Modifier.padding(10.dp), Arrangement.spacedBy(10.dp), Alignment.CenterVertically) {
+                Icon(Icons.Filled.RestartAlt, null, Modifier.size(20.dp), tint = RedErr)
+                Column(Modifier.weight(1f)) {
+                    Text("Reset to Stock Defaults", color = RedErr, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Kembalikan Governor, Sysctl, & Doze ke Setelan Awal", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                Button(
+                    onClick = { vm.resetToDefaults() },
+                    enabled = !vm.isOptimizing && hasControl,
+                    colors = ButtonDefaults.buttonColors(containerColor = RedErr),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) { Text("Reset", fontSize = 11.sp, color = Color.White) }
+            }
+        }
+
         SecLabel("CPU & MEMORY TUNER")
         GovernorCard(vm)
 
@@ -75,12 +97,12 @@ fun ToolsScreen(vm: MainViewModel) {
             toolId = "clear_cache",
             icon = Icons.Filled.Delete,
             title = "Clear System Caches",
-            desc = "Estimasi cache terdeteksi: ${vm.cacheSizeMb} MB",
+            desc = "Trim & Flush Cache Aplikasi",
             accent = OrangeGlow,
             enabled = hasControl,
             vm = vm
         ) {
-            vm.runTool("clear_cache", "Clear System Caches", "pm trim-caches 999G; cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
+            vm.runTool("clear_cache", "Clear System Caches", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
         SecLabel("SYSTEM UI & ADB TOOLS")
@@ -89,12 +111,12 @@ fun ToolsScreen(vm: MainViewModel) {
             toolId = "trim_mem",
             icon = Icons.Filled.Stop,
             title = "Trim App Memory (ADB)",
-            desc = "am send-trim-memory all 80",
+            desc = "Kirim sinyal Trim ke seluruh App Pihak-3",
             accent = CyanGlow,
             enabled = hasControl,
             vm = vm
         ) {
-            vm.runTool("trim_mem", "Trim Memory", "am send-trim-memory all 80") { ShizukuEngine.trimMemory() }
+            vm.runTool("trim_mem", "Trim Memory", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
         InteractiveToolItem(
@@ -107,18 +129,6 @@ fun ToolsScreen(vm: MainViewModel) {
             vm = vm
         ) {
             vm.runTool("doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") { ShizukuEngine.aggressiveDoze().first() }
-        }
-
-        InteractiveToolItem(
-            toolId = "tcp_bbr",
-            icon = Icons.Filled.Speed,
-            title = "Enable TCP BBR",
-            desc = "Optimasi congestion control buffer jaringan",
-            accent = EmeraldGlow,
-            enabled = vm.hasRoot,
-            vm = vm
-        ) {
-            vm.runTool("tcp_bbr", "TCP BBR", "sysctl -w net.ipv4.tcp_congestion_control=bbr") { SCmd(false, "", "") }
         }
 
         Spacer(Modifier.height(12.dp))

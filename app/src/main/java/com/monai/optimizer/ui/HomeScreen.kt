@@ -55,13 +55,23 @@ fun HomeScreen(vm: MainViewModel) {
                 Text("AI Engine & Hardware Tuner", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
 
-            val rotation by animateFloatAsState(
-                targetValue = if (vm.isRefreshing) 360f else 0f,
-                animationSpec = tween(durationMillis = 600, easing = LinearEasing),
-                label = "Spin"
-            )
-            IconButton(onClick = { vm.refresh(ctx) }) {
-                Icon(Icons.Filled.Refresh, "Refresh", tint = CyanGlow, modifier = Modifier.rotate(rotation))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Live Service Notification Toggle
+                IconButton(onClick = { vm.toggleLiveService(ctx) }) {
+                    Icon(
+                        Icons.Filled.Notifications, "Live Service",
+                        tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextDisabled
+                    )
+                }
+
+                val rotation by animateFloatAsState(
+                    targetValue = if (vm.isRefreshing) 360f else 0f,
+                    animationSpec = tween(durationMillis = 500, easing = LinearEasing),
+                    label = "Spin"
+                )
+                IconButton(onClick = { vm.refresh(ctx) }) {
+                    Icon(Icons.Filled.Refresh, "Refresh", tint = CyanGlow, modifier = Modifier.rotate(rotation))
+                }
             }
         }
 
@@ -102,7 +112,7 @@ fun DeviceGlassCard(vm: MainViewModel) {
 
             if (s != null) {
                 Text("${s.brand} ${s.model}", color = TextPrimary, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                
+
                 Text(
                     "Android ${s.android} (API ${s.api})  •  ${s.cores} Cores\n" +
                     "Physical RAM: ${s.physicalRamGb} GB (${s.totalRamMb} MB Usable)",
