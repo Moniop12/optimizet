@@ -3,14 +3,18 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="#0D1726">
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="4dp"
+    android:background="@android:color/transparent">
 
     <!-- Header App Title & Mode Badge -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
         <TextView
             android:id="@+id/txt_exp_app_title"
             android:layout_width="0dp"
@@ -32,9 +36,10 @@
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#1F2E45"
-        android:layout_marginVertical="6dp"/>
+        android:layout_height="0.8dp"
+        android:background="#20FFFFFF"
+        android:layout_marginTop="5dp"
+        android:layout_marginBottom="6dp"/>
 
     <!-- Grid Row 1: RAM & CPU -->
     <LinearLayout
@@ -52,13 +57,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="APP RAM"
-                android:textColor="#8B9CB0"
-                android:textSize="9sp"/>
+                android:textColor="#94A3B8"
+                android:textSize="9sp"
+                android:textStyle="bold"/>
             <TextView
                 android:id="@+id/txt_exp_ram_val"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="143 MB"
+                android:text="127 MB"
                 android:textColor="#00F2FE"
                 android:textStyle="bold"
                 android:textSize="12sp"/>
@@ -68,20 +74,21 @@
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="1.3"
             android:orientation="vertical">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="CPU FREQ &amp; TEMP"
-                android:textColor="#8B9CB0"
-                android:textSize="9sp"/>
+                android:textColor="#94A3B8"
+                android:textSize="9sp"
+                android:textStyle="bold"/>
             <TextView
                 android:id="@+id/txt_exp_cpu_val"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1113 MHz (39.1°C)"
-                android:textColor="#00C6FF"
+                android:text="633 / 1843 MHz (39.0°C)"
+                android:textColor="#38BDF8"
                 android:textStyle="bold"
                 android:textSize="12sp"/>
         </LinearLayout>
@@ -97,58 +104,62 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="POWER STREAM (BATTERY)"
-            android:textColor="#8B9CB0"
-            android:textSize="9sp"/>
+            android:textColor="#94A3B8"
+            android:textSize="9sp"
+            android:textStyle="bold"/>
         <TextView
             android:id="@+id/txt_exp_power_val"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="-267 mA (Discharge) • 56% (39.0°C)"
-            android:textColor="#FF5E36"
+            android:text="-714 mA (Discharge) • 50% (39.0°C)"
+            android:textColor="#F87171"
             android:textStyle="bold"
             android:textSize="12sp"/>
     </LinearLayout>
 
-    <!-- Row 3: Action Buttons -->
+    <!-- Action Buttons with Sleek Translucent Pills -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="8dp">
 
-        <Button
+        <TextView
             android:id="@+id/btn_notif_perf"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
+            android:gravity="center"
             android:text="PERF"
-            android:textColor="#FFFFFF"
+            android:textColor="#FF8A65"
             android:textSize="10sp"
             android:textStyle="bold"
-            android:backgroundTint="#FF5E36"/>
+            android:background="@drawable/notif_btn_bg_perf"/>
 
-        <Button
+        <TextView
             android:id="@+id/btn_notif_bal"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
+            android:gravity="center"
             android:text="BALANCED"
-            android:textColor="#FFFFFF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold"
-            android:backgroundTint="#00C6FF"/>
+            android:background="@drawable/notif_btn_bg_bal"/>
 
-        <Button
+        <TextView
             android:id="@+id/btn_notif_save"
             android:layout_width="0dp"
-            android:layout_height="32dp"
+            android:layout_height="28dp"
             android:layout_weight="1"
+            android:gravity="center"
             android:text="SAVER"
-            android:textColor="#FFFFFF"
+            android:textColor="#34D399"
             android:textSize="10sp"
             android:textStyle="bold"
-            android:backgroundTint="#00F5A0"/>
+            android:background="@drawable/notif_btn_bg_save"/>
     </LinearLayout>
 </LinearLayout>

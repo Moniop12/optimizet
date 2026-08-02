@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="64dp"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:background="#0D1726">
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
+    android:background="@android:color/transparent">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,7 +21,7 @@
             android:text="MonAi • Focus App"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:textSize="12sp"/>
+            android:textSize="13sp"/>
         <TextView
             android:id="@+id/txt_mode_badge"
             android:layout_width="wrap_content"
@@ -33,13 +36,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="4dp">
+        android:layout_marginTop="3dp">
         <TextView
             android:id="@+id/txt_col_ram"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="RAM: 143MB"
+            android:text="RAM: 127 MB"
             android:textColor="#00F2FE"
             android:textSize="11sp"
             android:textStyle="bold"/>
@@ -47,9 +50,9 @@
             android:id="@+id/txt_col_cpu"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="CPU: 1113MHz"
-            android:textColor="#00C6FF"
+            android:layout_weight="1.2"
+            android:text="CPU: 633 MHz"
+            android:textColor="#38BDF8"
             android:textSize="11sp"
             android:textStyle="bold"/>
         <TextView
@@ -57,8 +60,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="-267 mA"
-            android:textColor="#FF5E36"
+            android:text="-714 mA"
+            android:textColor="#F87171"
             android:textSize="11sp"
             android:textStyle="bold"/>
     </LinearLayout>

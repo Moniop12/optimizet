@@ -243,7 +243,7 @@ class MonAiService : Service() {
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
         val powerText = if (bat.isCharging) "+${abs(bat.currentMa)} mA (Charging)" else "-${abs(bat.currentMa)} mA (Discharge)"
-        val powerColor = if (bat.isCharging) Color.parseColor("#00F5A0") else Color.parseColor("#FF5E36")
+        val powerColor = if (bat.isCharging) Color.parseColor("#34D399") else Color.parseColor("#F87171")
         val formattedTemp = "%.1f".format(bat.tempC)
 
         // Populate Collapsed Custom View
