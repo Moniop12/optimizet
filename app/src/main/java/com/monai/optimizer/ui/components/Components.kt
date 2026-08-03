@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -20,6 +19,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.monai.optimizer.ui.neumorphic.NeuInsets
+import com.monai.optimizer.ui.neumorphic.neumorphic
+import com.monai.optimizer.ui.neumorphic.shapes.Pressed
+import com.monai.optimizer.ui.neumorphic.shapes.Punched
 import com.monai.optimizer.ui.theme.*
 
 /** Small uppercase caption used to introduce a group of cards. */
@@ -38,10 +41,11 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 /**
  * Base elevated card used everywhere for visual consistency.
  *
- * Catatan desain: `accent` TIDAK lagi dipakai untuk mewarnai border kartu
- * (itu penyebab kesan "cyber/menyala"). Border selalu hairline netral;
- * accent hanya dipakai kalau [emphasize] = true, untuk 1 kartu paling
- * penting per layar (mis. status utama), bukan semua kartu sekaligus.
+ * Efek neumorphic: card & background pakai warna SAMA ([NeuBase]) —
+ * yang membedakan cuma shadow terang (kiri-atas) & gelap (kanan-bawah)
+ * di sekelilingnya, jadi terkesan "timbul" dari permukaan.
+ * [emphasize] = true membalik jadi shadow "cekung" (Pressed), dipakai
+ * untuk 1 kartu paling penting / sedang aktif per layar saja.
  */
 @Composable
 fun AppCard(
@@ -51,17 +55,19 @@ fun AppCard(
     containerColor: Color = Surface2,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val borderColor = if (emphasize) GlassBorderStrong else GlassBorder
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(listOf(GlossHighlight, GlossFade)),
-                shape = RoundedCornerShape(20.dp)
+            .neumorphic(
+                neuShape = if (emphasize) Pressed.Rounded(radius = 20.dp) else Punched.Rounded(radius = 20.dp),
+                lightShadowColor = NeuLightShadow,
+                darkShadowColor = NeuDarkShadow,
+                elevation = 6.dp,
+                neuInsets = NeuInsets(6.dp, 6.dp)
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         content = content
     )
 }
@@ -75,8 +81,16 @@ fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 1
     Box(
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (active) tint.copy(alpha = 0.14f) else Surface3),
+            .neumorphic(
+                neuShape = Pressed.Oval(),
+                lightShadowColor = NeuLightShadow,
+                darkShadowColor = NeuDarkShadow,
+                elevation = 3.dp,
+                strokeWidth = 3.dp,
+                neuInsets = NeuInsets(3.dp, 3.dp)
+            )
+            .clip(CircleShape)
+            .background(NeuBase),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, null, tint = effectiveTint, modifier = Modifier.size(iconSize))
@@ -135,8 +149,15 @@ fun NavSummaryCard(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = Surface2,
-        border = BorderStroke(1.dp, GlassBorder),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .neumorphic(
+                neuShape = Punched.Rounded(radius = 20.dp),
+                lightShadowColor = NeuLightShadow,
+                darkShadowColor = NeuDarkShadow,
+                elevation = 6.dp,
+                neuInsets = NeuInsets(6.dp, 6.dp)
+            )
     ) {
         Row(
             Modifier.padding(14.dp),
@@ -201,9 +222,16 @@ fun ToolActionRow(
 @Composable
 fun InfoBanner(text: String, accent: Color = TextSecondary) {
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(14.dp),
         color = Surface3,
-        border = BorderStroke(1.dp, GlassBorder)
+        modifier = Modifier.neumorphic(
+            neuShape = Pressed.Rounded(radius = 14.dp),
+            lightShadowColor = NeuLightShadow,
+            darkShadowColor = NeuDarkShadow,
+            elevation = 3.dp,
+            strokeWidth = 3.dp,
+            neuInsets = NeuInsets(4.dp, 4.dp)
+        )
     ) {
         Text(text, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), color = accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
