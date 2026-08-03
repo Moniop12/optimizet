@@ -111,7 +111,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         }
                         Switch(
                             checked = vm.isThermalProtectEnabled,
-                            onCheckedChange = { vm.setThermalProtectEnabled(it) },
+                            onCheckedChange = { vm.setThermalProtect(it) },
                             enabled = vm.hasRoot,
                             colors = SwitchDefaults.colors(checkedTrackColor = OrangeGlow)
                         )

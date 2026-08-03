@@ -197,7 +197,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun setThermalProtectEnabled(enabled: Boolean) {
+    fun setThermalProtect(enabled: Boolean) {
         isThermalProtectEnabled = enabled
         MonAiService.isThermalProtectEnabled = enabled
         viewModelScope.launch(Dispatchers.IO) {
