@@ -1,25 +1,20 @@
 package com.monai.optimizer.ui.components
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -54,51 +49,21 @@ fun AppCard(
     accent: Color? = null,
     emphasize: Boolean = false,
     containerColor: Color = Surface2,
-    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val borderColor = if (emphasize) GlassBorderStrong else GlassBorder
-    
-    // Spring animation saat ditekan
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumLow, stiffness = Spring.StiffnessLow),
-        label = "spring_scale"
-    )
-
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .pointerInput(onClick) {
-                if (onClick != null) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            try {
-                                awaitRelease()
-                            } finally {
-                                isPressed = false
-                            }
-                        },
-                        onTap = { onClick() }
-                    )
-                }
-            },
+            .background(
+                brush = Brush.verticalGradient(listOf(GlossHighlight, GlossFade)),
+                shape = RoundedCornerShape(20.dp)
+            ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        // Gradient gloss overlay di balik konten
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(GlossHighlight, GlossFade)))
-        ) {
-            Column(content = content)
-        }
-    }
+        border = BorderStroke(1.dp, borderColor),
+        content = content
+    )
 }
 
 /** Small round icon badge. Netral (abu-abu) secara default; accent penuh
@@ -166,10 +131,12 @@ fun NavSummaryCard(
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
-    // NavSummaryCard juga menggunakan animasi spring dan gloss
-    AppCard(
+    Surface(
         onClick = onClick,
-        containerColor = Surface2
+        shape = RoundedCornerShape(20.dp),
+        color = Surface2,
+        border = BorderStroke(1.dp, GlassBorder),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             Modifier.padding(14.dp),
