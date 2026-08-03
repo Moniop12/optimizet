@@ -129,50 +129,31 @@ fun HomeScreen(vm: MainViewModel) {
 
 @Composable
 fun SystemTweaksCard(vm: MainViewModel) {
+    val ctx = LocalContext.current
+
     AppCard(accent = CyanGlow, containerColor = CyanGlow.copy(alpha = 0.08f)) {
         Column(Modifier.padding(14.dp), Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
-                    Text("System UI & Rendering Tweaks", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
-
-            // Tweak 1: Smooth Scroll Engine
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Smooth Scroll Engine", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text("SurfaceFlinger latch & Skia pipeline", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Column {
+                        Text("Smooth UI & Rendering Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("SurfaceFlinger, Skia GPU & Anim 0.5x", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 Switch(
                     checked = vm.aiOptimizerEnabled,
-                    onCheckedChange = { vm.toggleAiOptimizer() },
+                    onCheckedChange = { vm.toggleAiOptimizer(ctx) },
                     enabled = vm.hasRoot,
                     colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
                 )
             }
 
-            // Tweak 2: Disable Animations (Instant Speed)
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Disable UI Animations", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text("0x Animation Scale for instant response", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(
-                    checked = vm.disableAnimationsEnabled,
-                    onCheckedChange = { vm.toggleDisableAnimations() },
-                    enabled = vm.hasRoot || vm.hasShizuku,
-                    colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
-                )
-            }
-
-            // Indicator Badges
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Indicator Badge Ramping
+            Row(Modifier.fillMaxWidth()) {
                 Text(
-                    "• Smooth Scroll: ${if (vm.aiOptimizerEnabled) "ON" else "OFF"}   • Anim 0x: ${if (vm.disableAnimationsEnabled) "ON" else "OFF"}",
-                    color = CyanGlow,
+                    "• Status Engine: ${if (vm.aiOptimizerEnabled) "ACTIVE (Smooth Scroll + Anim 0.5x)" else "OFF"}",
+                    color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )

@@ -158,7 +158,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Text("${UserPreferencesRepository.MAX_CHARGE_SPEED_MA} mA", color = TextTertiary, fontSize = 10.sp)
                         }
 
-                        // Presets menggunakan LazyRow agar tidak terlipat
+                        // Preset Ringkas
                         val presets = listOf(
                             500 to "0.5A",
                             1000 to "1.0A",

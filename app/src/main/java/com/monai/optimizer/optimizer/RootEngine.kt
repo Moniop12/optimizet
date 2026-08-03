@@ -54,8 +54,6 @@ object RootEngine {
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
 
-    // ── CPU Governor Controls via Root Shell ──────────────────────────
-
     fun getGovernors(): List<String> {
         val r = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors 2>/dev/null")
         return r.output.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -78,8 +76,6 @@ object RootEngine {
         val r = su("sysctl -n $key 2>/dev/null")
         return r.output.trim()
     }
-
-    // ── Backup Nilai Asli Bawaan Pabrik ──────────────────────────────
 
     suspend fun backupOriginalStateIfNeeded() {
         val ctx = appContext ?: return
@@ -118,31 +114,28 @@ object RootEngine {
         )
     }
 
-    // ── Real Smooth Scroll & Rendering Tweaks ─────────────────────────
+    // ── Smooth UI & Rendering Engine (Combined Animation Scaling) ────
 
     fun applySmoothRenderingTweaks(enable: Boolean): CmdResult {
         return if (enable) {
             su(
                 "setprop debug.sf.latch_unsignaled 1; " +
                 "setprop renderthread.skia.reduce_ops_task_splitting true; " +
-                "setprop view.scroll_friction 0.005"
+                "setprop view.scroll_friction 0.005; " +
+                "settings put global window_animation_scale 0.5; " +
+                "settings put global transition_animation_scale 0.5; " +
+                "settings put global animator_duration_scale 0.5"
             )
         } else {
             su(
                 "setprop debug.sf.latch_unsignaled 0; " +
                 "setprop renderthread.skia.reduce_ops_task_splitting false; " +
-                "setprop view.scroll_friction 0.015"
+                "setprop view.scroll_friction 0.015; " +
+                "settings put global window_animation_scale 1.0; " +
+                "settings put global transition_animation_scale 1.0; " +
+                "settings put global animator_duration_scale 1.0"
             )
         }
-    }
-
-    fun applyDisableAnimations(disable: Boolean): CmdResult {
-        val valScale = if (disable) "0" else "1.0"
-        return su(
-            "settings put global window_animation_scale $valScale; " +
-            "settings put global transition_animation_scale $valScale; " +
-            "settings put global animator_duration_scale $valScale"
-        )
     }
 
     // ── Profiles ──────────────────────────────────────────────────────
@@ -183,8 +176,6 @@ object RootEngine {
         )
     }
 
-    // ── Reset to Defaults Berdasarkan Backup Asli ──────────────────
-
     suspend fun resetToDefaults(): List<CmdResult> {
         val snap = getBackupSnapshot()
         val avail = getGovernors()
@@ -202,7 +193,6 @@ object RootEngine {
         return listOf(
             setGovernor(defaultGov),
             applySmoothRenderingTweaks(false),
-            applyDisableAnimations(false),
             su("sysctl -w vm.swappiness=$swappiness"),
             su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),
@@ -211,8 +201,6 @@ object RootEngine {
             su("dumpsys deviceidle disable 2>/dev/null || true")
         )
     }
-
-    // ── Info Helpers via Shell Root (SELinux Bypass) ─────────────────
 
     fun getCpuFreqInfo(): String {
         val cur = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L

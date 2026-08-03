@@ -10,9 +10,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,9 +21,12 @@ import com.monai.optimizer.optimizer.ShizukuEngine
 import com.monai.optimizer.ui.components.*
 import com.monai.optimizer.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
+    val ctx = LocalContext.current
     val hasControl = vm.hasRoot || vm.hasShizuku
+    var showNotifSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -39,8 +43,14 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             InfoBanner(vm.statusMsg)
         }
 
-        SectionLabel("NOTIFICATION DASHBOARD CUSTOMIZER")
-        NotifCustomizerCard(vm)
+        SectionLabel("NOTIFICATION BAR")
+        NavSummaryCard(
+            icon = Icons.Filled.Notifications,
+            accent = CyanGlow,
+            title = "Customize Notification Bar",
+            subtitle = "Manage visible modules & custom layout",
+            onClick = { showNotifSheet = true }
+        )
 
         SectionLabel("POWER")
         NavSummaryCard(
@@ -64,7 +74,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = hasControl,
             isRunning = vm.runningTools["ram_clean"] == true
         ) {
-            vm.runTool("ram_clean", "Clean RAM", "am kill-all; cmd activity kill-all") { ShizukuEngine.killBgApps() }
+            vm.runTool(ctx, "ram_clean", "Clean RAM", "am kill-all; cmd activity kill-all") { ShizukuEngine.killBgApps() }
         }
 
         ToolActionRow(
@@ -75,7 +85,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = vm.hasRoot,
             isRunning = vm.runningTools["drop_cache"] == true
         ) {
-            vm.runTool("drop_cache", "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches") { com.monai.optimizer.optimizer.SCmd(false, "", "") }
+            vm.runTool(ctx, "drop_cache", "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches") { com.monai.optimizer.optimizer.SCmd(false, "", "") }
         }
 
         ToolActionRow(
@@ -86,7 +96,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = hasControl,
             isRunning = vm.runningTools["clear_cache"] == true
         ) {
-            vm.runTool("clear_cache", "Clear System Caches", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
+            vm.runTool(ctx, "clear_cache", "Clear System Caches", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
         SectionLabel("SYSTEM UI & ADB TOOLS")
@@ -99,7 +109,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = hasControl,
             isRunning = vm.runningTools["trim_mem"] == true
         ) {
-            vm.runTool("trim_mem", "Trim Memory", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
+            vm.runTool(ctx, "trim_mem", "Trim Memory", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
         }
 
         ToolActionRow(
@@ -110,7 +120,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = hasControl,
             isRunning = vm.runningTools["doze_mode"] == true
         ) {
-            vm.runTool("doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") { ShizukuEngine.aggressiveDoze().first() }
+            vm.runTool(ctx, "doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") { ShizukuEngine.aggressiveDoze().first() }
         }
 
         SectionLabel("DANGER ZONE")
@@ -118,40 +128,46 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
     }
-}
 
-@Composable
-fun NotifCustomizerCard(vm: MainViewModel) {
-    AppCard(accent = CyanGlow) {
-        Column(Modifier.padding(14.dp), Arrangement.spacedBy(8.dp)) {
-            Text("Customize Notification Bar", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Text("Toggle modules to show/hide elements in live notification", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+    // Modal Bottom Sheet Ramping untuk Setting Notifikasi
+    if (showNotifSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showNotifSheet = false },
+            containerColor = DarkSurface,
+            contentColor = TextPrimary
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Notification Dashboard Bar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("Toggle modules to show or hide completely in notification", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
 
-            HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Show App RAM Usage", color = TextPrimary, fontSize = 12.sp)
-                Switch(checked = vm.showNotifRam, onCheckedChange = { vm.toggleNotifRam() })
-            }
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("Show App RAM Usage", color = TextPrimary, fontSize = 13.sp)
+                    Switch(checked = vm.showNotifRam, onCheckedChange = { vm.toggleNotifRam() })
+                }
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Show CPU Freq & Temp", color = TextPrimary, fontSize = 12.sp)
-                Switch(checked = vm.showNotifCpu, onCheckedChange = { vm.toggleNotifCpu() })
-            }
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("Show CPU Freq & Temp", color = TextPrimary, fontSize = 13.sp)
+                    Switch(checked = vm.showNotifCpu, onCheckedChange = { vm.toggleNotifCpu() })
+                }
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Show Power Stream (Battery)", color = TextPrimary, fontSize = 12.sp)
-                Switch(checked = vm.showNotifPower, onCheckedChange = { vm.toggleNotifPower() })
-            }
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("Show Power Stream (Battery)", color = TextPrimary, fontSize = 13.sp)
+                    Switch(checked = vm.showNotifPower, onCheckedChange = { vm.toggleNotifPower() })
+                }
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Show Profile Switcher Buttons", color = TextPrimary, fontSize = 12.sp)
-                Switch(checked = vm.showNotifProfiles, onCheckedChange = { vm.toggleNotifProfiles() })
-            }
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("Show Profile Switcher Buttons", color = TextPrimary, fontSize = 13.sp)
+                    Switch(checked = vm.showNotifProfiles, onCheckedChange = { vm.toggleNotifProfiles() })
+                }
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Show Quick Clean RAM Button", color = TextPrimary, fontSize = 12.sp)
-                Switch(checked = vm.showNotifQuickClean, onCheckedChange = { vm.toggleNotifQuickClean() })
+                Spacer(Modifier.height(16.dp))
             }
         }
     }

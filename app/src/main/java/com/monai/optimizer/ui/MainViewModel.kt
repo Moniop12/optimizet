@@ -69,8 +69,6 @@ class MainViewModel : ViewModel() {
 
     var aiOptimizerEnabled by mutableStateOf(false)
         private set
-    var disableAnimationsEnabled by mutableStateOf(false)
-        private set
 
     // Notification Modular Settings States
     var showNotifRam by mutableStateOf(true)
@@ -80,8 +78,6 @@ class MainViewModel : ViewModel() {
     var showNotifPower by mutableStateOf(true)
         private set
     var showNotifProfiles by mutableStateOf(true)
-        private set
-    var showNotifQuickClean by mutableStateOf(false)
         private set
 
     val runningTools = mutableStateMapOf<String, Boolean>()
@@ -148,13 +144,11 @@ class MainViewModel : ViewModel() {
                 isLiveServiceRunning = state.isLiveServiceRunning
                 isThermalProtectEnabled = state.isThermalProtectEnabled
                 aiOptimizerEnabled = state.aiOptimizerEnabled
-                disableAnimationsEnabled = state.disableAnimationsEnabled
 
                 showNotifRam = state.showNotifRam
                 showNotifCpu = state.showNotifCpu
                 showNotifPower = state.showNotifPower
                 showNotifProfiles = state.showNotifProfiles
-                showNotifQuickClean = state.showNotifQuickClean
 
                 MonAiService.currentActiveProfile = state.activeProfile
                 MonAiService.aiOptimizerEnabled = state.aiOptimizerEnabled
@@ -203,7 +197,16 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun toggleAiOptimizer() {
+    private fun postNotifLogMsg(ctx: Context, msg: String) {
+        if (!isLiveServiceRunning) return
+        val intent = Intent(ctx, MonAiService::class.java).apply {
+            action = MonAiService.ACTION_POST_STATUS_LOG
+            putExtra(MonAiService.EXTRA_LOG_MSG, msg)
+        }
+        ctx.startService(intent)
+    }
+
+    fun toggleAiOptimizer(ctx: Context) {
         aiOptimizerEnabled = !aiOptimizerEnabled
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
         viewModelScope.launch(Dispatchers.IO) {
@@ -211,18 +214,9 @@ class MainViewModel : ViewModel() {
             if (hasRoot) {
                 RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
             }
-        }
-    }
-
-    fun toggleDisableAnimations() {
-        disableAnimationsEnabled = !disableAnimationsEnabled
-        viewModelScope.launch(Dispatchers.IO) {
-            prefsRepo.setDisableAnimationsEnabled(disableAnimationsEnabled)
-            if (hasRoot) {
-                RootEngine.applyDisableAnimations(disableAnimationsEnabled)
-            } else if (hasShizuku) {
-                val scale = if (disableAnimationsEnabled) 0f else 1.0f
-                ShizukuEngine.setAnimScale(scale)
+            withContext(Dispatchers.Main) {
+                val status = if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled"
+                postNotifLogMsg(ctx, "⚡ $status")
             }
         }
     }
@@ -241,10 +235,6 @@ class MainViewModel : ViewModel() {
 
     fun toggleNotifProfiles() {
         viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifProfilesVisible(!showNotifProfiles) }
-    }
-
-    fun toggleNotifQuickClean() {
-        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifQuickCleanVisible(!showNotifQuickClean) }
     }
 
     fun setChargeLimit(enabled: Boolean, pct: Float) {
@@ -417,7 +407,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun runTool(toolId: String, label: String, rootCmd: String, shzFn: () -> SCmd) {
+    fun runTool(ctx: Context, toolId: String, label: String, rootCmd: String, shzFn: () -> SCmd) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) { runningTools[toolId] = true }
 
@@ -437,7 +427,9 @@ class MainViewModel : ViewModel() {
             delay(200)
             withContext(Dispatchers.Main) {
                 runningTools[toolId] = false
-                statusMsg = if (success) "$label succeeded" else "$label failed"
+                val msg = if (success) "$label succeeded" else "$label failed"
+                statusMsg = msg
+                postNotifLogMsg(ctx, "⚡ $msg")
                 log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
             }
         }

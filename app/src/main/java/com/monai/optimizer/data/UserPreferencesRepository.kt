@@ -19,14 +19,12 @@ data class UserPreferencesState(
     val chargeSpeedMa: Int,
     val isLiveServiceRunning: Boolean,
     val isThermalProtectEnabled: Boolean,
-    val aiOptimizerEnabled: Boolean,
-    val disableAnimationsEnabled: Boolean,
-    // Custom Notif Modular Settings
+    val aiOptimizerEnabled: Boolean, // Smooth UI & Rendering Engine
+    // Notification Customizer Settings
     val showNotifRam: Boolean,
     val showNotifCpu: Boolean,
     val showNotifPower: Boolean,
     val showNotifProfiles: Boolean,
-    val showNotifQuickClean: Boolean,
 )
 
 class UserPreferencesRepository(context: Context) {
@@ -41,14 +39,12 @@ class UserPreferencesRepository(context: Context) {
         val LIVE_SERVICE_RUNNING = booleanPreferencesKey("is_live_service_running")
         val THERMAL_PROTECT_ENABLED = booleanPreferencesKey("is_thermal_protect_enabled")
         val AI_OPTIMIZER_ENABLED = booleanPreferencesKey("ai_optimizer_enabled")
-        val DISABLE_ANIMATIONS_ENABLED = booleanPreferencesKey("disable_animations_enabled")
 
         // Notification Customizer Keys
         val SHOW_NOTIF_RAM = booleanPreferencesKey("show_notif_ram")
         val SHOW_NOTIF_CPU = booleanPreferencesKey("show_notif_cpu")
         val SHOW_NOTIF_POWER = booleanPreferencesKey("show_notif_power")
         val SHOW_NOTIF_PROFILES = booleanPreferencesKey("show_notif_profiles")
-        val SHOW_NOTIF_QUICK_CLEAN = booleanPreferencesKey("show_notif_quick_clean")
     }
 
     companion object {
@@ -69,12 +65,10 @@ class UserPreferencesRepository(context: Context) {
             isLiveServiceRunning = prefs[Keys.LIVE_SERVICE_RUNNING] ?: false,
             isThermalProtectEnabled = prefs[Keys.THERMAL_PROTECT_ENABLED] ?: false,
             aiOptimizerEnabled = prefs[Keys.AI_OPTIMIZER_ENABLED] ?: false,
-            disableAnimationsEnabled = prefs[Keys.DISABLE_ANIMATIONS_ENABLED] ?: false,
             showNotifRam = prefs[Keys.SHOW_NOTIF_RAM] ?: true,
             showNotifCpu = prefs[Keys.SHOW_NOTIF_CPU] ?: true,
             showNotifPower = prefs[Keys.SHOW_NOTIF_POWER] ?: true,
             showNotifProfiles = prefs[Keys.SHOW_NOTIF_PROFILES] ?: true,
-            showNotifQuickClean = prefs[Keys.SHOW_NOTIF_QUICK_CLEAN] ?: false,
         )
     }
 
@@ -110,10 +104,6 @@ class UserPreferencesRepository(context: Context) {
         store.edit { prefs -> prefs[Keys.AI_OPTIMIZER_ENABLED] = enabled }
     }
 
-    suspend fun setDisableAnimationsEnabled(enabled: Boolean) {
-        store.edit { prefs -> prefs[Keys.DISABLE_ANIMATIONS_ENABLED] = enabled }
-    }
-
     suspend fun setNotifRamVisible(visible: Boolean) {
         store.edit { prefs -> prefs[Keys.SHOW_NOTIF_RAM] = visible }
     }
@@ -128,9 +118,5 @@ class UserPreferencesRepository(context: Context) {
 
     suspend fun setNotifProfilesVisible(visible: Boolean) {
         store.edit { prefs -> prefs[Keys.SHOW_NOTIF_PROFILES] = visible }
-    }
-
-    suspend fun setNotifQuickCleanVisible(visible: Boolean) {
-        store.edit { prefs -> prefs[Keys.SHOW_NOTIF_QUICK_CLEAN] = visible }
     }
 }
