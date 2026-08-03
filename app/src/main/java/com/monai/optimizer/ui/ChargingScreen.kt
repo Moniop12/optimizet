@@ -63,13 +63,13 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
             // Enable / disable charge limit
             AppCard(accent = EmeraldGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(12.dp)) {
+                    // Title + switch share a single line so the switch always centers against
+                    // ONE line of text, never the whole 2-line description block (fixes the
+                    // switch visually "sinking" below-center on long descriptions).
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconBadge(Icons.Filled.BatteryChargingFull, EmeraldGlow)
-                            Column {
-                                Text("Charge Limit", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("Stop charging automatically at a set level", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                            }
+                            Text("Charge Limit", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
                         Switch(
                             checked = vm.isChargeLimitEnabled,
@@ -78,17 +78,30 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             colors = SwitchDefaults.colors(checkedTrackColor = EmeraldGlow)
                         )
                     }
+                    Text(
+                        "Stop charging automatically at a set level",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 50.dp, top = (-4).dp)
+                    )
 
                     if (vm.hasRoot) {
                         HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
 
+                        // Local drag state — the slider tracks this instantly (60fps, no lag),
+                        // and only commits to the ViewModel/DataStore once the finger lifts.
+                        // Previously this called vm.setChargeLimit() on every pixel of drag,
+                        // which triggered a coroutine + DataStore write per frame -> stutter.
+                        var dragPct by remember(vm.chargeLimitPct) { mutableFloatStateOf(vm.chargeLimitPct) }
+
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Text("Stop Charging At", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                            Text("${vm.chargeLimitPct.toInt()}%", color = EmeraldGlow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                            Text("${dragPct.toInt()}%", color = EmeraldGlow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
-                            value = vm.chargeLimitPct,
-                            onValueChange = { vm.setChargeLimit(vm.isChargeLimitEnabled, it) },
+                            value = dragPct,
+                            onValueChange = { dragPct = it },
+                            onValueChangeFinished = { vm.setChargeLimit(vm.isChargeLimitEnabled, dragPct) },
                             valueRange = 70f..95f,
                             steps = 4,
                             enabled = vm.isChargeLimitEnabled,
@@ -100,14 +113,11 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
 
             // Thermal protection
             AppCard(accent = OrangeGlow) {
-                Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconBadge(Icons.Filled.Thermostat, OrangeGlow)
-                            Column {
-                                Text("Thermal Protection", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("Auto-throttle current above 42°C, restore below 38°C", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                            }
+                            Text("Thermal Protection", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
                         Switch(
                             checked = vm.isThermalProtectEnabled,
@@ -116,6 +126,12 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             colors = SwitchDefaults.colors(checkedTrackColor = OrangeGlow)
                         )
                     }
+                    Text(
+                        "Auto-throttle current above 42°C, restore below 38°C",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(start = 50.dp)
+                    )
                 }
             }
 
@@ -154,7 +170,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Text("${UserPreferencesRepository.MAX_CHARGE_SPEED_MA} mA · Max", color = TextTertiary, fontSize = 10.sp)
                         }
 
-                        // Quick presets — convenience shortcuts, still fully overridable by the slider above.
+                        // Quick presets - convenience shortcuts, still fully overridable by the slider above.
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(6.dp)) {
                             listOf(1000, 1500, 2000, 3000, 5000).forEach { mA ->
                                 FilterChip(

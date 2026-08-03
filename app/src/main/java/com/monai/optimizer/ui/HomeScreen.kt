@@ -73,10 +73,10 @@ fun HomeScreen(vm: MainViewModel) {
                     Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(11.dp))
-                        .background(Brush.linearGradient(listOf(Cyan500, PurpleGlow))),
+                        .background(Brush.linearGradient(listOf(CyanGlow, EmeraldGlow))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Bolt, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Speed, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 Column {
                     Text(
