@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -51,6 +52,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
  * The Charging sub-screen is a separate overlay (slide-in from the right, like a normal
  * "push" navigation) on top of the pager, with the system back button popping it closed.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainApp(vm: MainViewModel) {
     val screens = listOf(Screen.Home, Screen.Tools, Screen.Log)
