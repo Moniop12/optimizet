@@ -1,0 +1,90 @@
+package com.monai.optimizer.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.monai.optimizer.optimizer.OptProfile
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore by preferencesDataStore(name = "monai_user_prefs")
+
+/**
+ * Single source of truth for all state that must survive process death, an
+ * app-kill by the system, or a full device reboot. Both [com.monai.optimizer.ui.MainViewModel]
+ * and [com.monai.optimizer.service.MonAiService] read/write through this repository so
+ * the UI and the background service are always in sync (two-way) via the same Flow.
+ */
+data class UserPreferencesState(
+    val activeProfile: OptProfile?,
+    val isChargeLimitEnabled: Boolean,
+    val chargeLimitPct: Int,
+    val chargeSpeedMa: Int,
+    val isLiveServiceRunning: Boolean,
+    val isThermalProtectEnabled: Boolean,
+)
+
+class UserPreferencesRepository(context: Context) {
+
+    private val store = context.applicationContext.dataStore
+
+    private object Keys {
+        val ACTIVE_PROFILE = stringPreferencesKey("active_profile")
+        val CHARGE_LIMIT_ENABLED = booleanPreferencesKey("is_charge_limit_enabled")
+        val CHARGE_LIMIT_PCT = intPreferencesKey("charge_limit_pct")
+        val CHARGE_SPEED_MA = intPreferencesKey("charge_speed_ma")
+        val LIVE_SERVICE_RUNNING = booleanPreferencesKey("is_live_service_running")
+        val THERMAL_PROTECT_ENABLED = booleanPreferencesKey("is_thermal_protect_enabled")
+    }
+
+    companion object {
+        const val DEFAULT_CHARGE_LIMIT_PCT = 80
+        const val DEFAULT_CHARGE_SPEED_MA = 1500
+        const val MAX_CHARGE_SPEED_MA = 5000
+        const val MIN_CHARGE_SPEED_MA = 100
+    }
+
+    val preferencesFlow: Flow<UserPreferencesState> = store.data.map { prefs ->
+        UserPreferencesState(
+            activeProfile = prefs[Keys.ACTIVE_PROFILE]?.let { name ->
+                runCatching { OptProfile.valueOf(name) }.getOrNull()
+            },
+            isChargeLimitEnabled = prefs[Keys.CHARGE_LIMIT_ENABLED] ?: false,
+            chargeLimitPct = prefs[Keys.CHARGE_LIMIT_PCT] ?: DEFAULT_CHARGE_LIMIT_PCT,
+            chargeSpeedMa = prefs[Keys.CHARGE_SPEED_MA] ?: DEFAULT_CHARGE_SPEED_MA,
+            isLiveServiceRunning = prefs[Keys.LIVE_SERVICE_RUNNING] ?: false,
+            isThermalProtectEnabled = prefs[Keys.THERMAL_PROTECT_ENABLED] ?: false,
+        )
+    }
+
+    suspend fun setActiveProfile(profile: OptProfile?) {
+        store.edit { prefs ->
+            if (profile == null) prefs.remove(Keys.ACTIVE_PROFILE)
+            else prefs[Keys.ACTIVE_PROFILE] = profile.name
+        }
+    }
+
+    suspend fun setChargeLimit(enabled: Boolean, pct: Int) {
+        store.edit { prefs ->
+            prefs[Keys.CHARGE_LIMIT_ENABLED] = enabled
+            prefs[Keys.CHARGE_LIMIT_PCT] = pct.coerceIn(50, 100)
+        }
+    }
+
+    suspend fun setChargeSpeedMa(mA: Int) {
+        store.edit { prefs ->
+            prefs[Keys.CHARGE_SPEED_MA] = mA.coerceIn(MIN_CHARGE_SPEED_MA, MAX_CHARGE_SPEED_MA)
+        }
+    }
+
+    suspend fun setLiveServiceRunning(running: Boolean) {
+        store.edit { prefs -> prefs[Keys.LIVE_SERVICE_RUNNING] = running }
+    }
+
+    suspend fun setThermalProtectEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[Keys.THERMAL_PROTECT_ENABLED] = enabled }
+    }
+}

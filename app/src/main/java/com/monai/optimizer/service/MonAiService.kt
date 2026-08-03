@@ -1,18 +1,22 @@
 package com.monai.optimizer.service
 
 import android.app.*
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
+import android.os.AppOpsManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.os.Process
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
+import com.monai.optimizer.data.UserPreferencesRepository
 import com.monai.optimizer.optimizer.ChargingEngine
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
@@ -35,6 +39,14 @@ class MonAiService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var isRunning = false
 
+    private lateinit var prefsRepo: UserPreferencesRepository
+    private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
+
+    // Cached focused-app result — refreshed at full rate via UsageStatsManager when
+    // available, or at a throttled rate via root `dumpsys` otherwise (see §5 fix).
+    private var lastFocusInfo = AppFocusInfo("System Active", 0L)
+    private var dumpsysPollTick = 0
+
     companion object {
         const val CHANNEL_ID = "monai_live_channel"
         const val NOTIF_ID = 9901
@@ -44,20 +56,86 @@ class MonAiService : Service() {
         const val ACTION_SET_PROFILE = "ACTION_SET_PROFILE"
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
 
+        // Battery/CPU stats poll every 2s; when root `dumpsys` is the only way to
+        // detect the focused app, only do it every DUMPSYS_POLL_EVERY ticks (~6-10s)
+        // instead of every 2s, to stop the constant-exec battery drain (§5).
+        private const val MONITOR_INTERVAL_MS = 2000L
+        private const val DUMPSYS_POLL_EVERY = 4 // 4 * 2s = 8s
+
         var currentActiveProfile: OptProfile? = null
 
-        // Smart Charging Service State
+        // Smart Charging Service State (mirrors UserPreferencesRepository; kept as
+        // plain vars for cheap access from the hot monitoring loop, but every mutation
+        // that must survive process death goes through the repository as well).
         var isChargeLimitEnabled = false
         var chargeLimitPct = 80
+        var chargeSpeedMa = UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA
         var isThermalProtectEnabled = false
         var isChargePausedByLimit = false
+        var isThermalThrottled = false
+
+        /**
+         * Fail-safe: synchronously (blocking, safe to call from a crash handler or
+         * onDestroy) restores charging to hardware if this service had it paused —
+         * either via the charge limit or the thermal throttle — so a killed/crashed
+         * service can never leave the device permanently unable to charge.
+         */
+        fun restoreChargingFailSafe() {
+            try {
+                if (isChargePausedByLimit || isThermalThrottled) {
+                    ChargingEngine.setChargingEnabled(true)
+                    if (isThermalThrottled) {
+                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                    }
+                }
+            } catch (_: Throwable) {
+                // Never let the fail-safe itself throw — this may run on a dying thread.
+            } finally {
+                isChargePausedByLimit = false
+                isThermalThrottled = false
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        RootEngine.init(applicationContext)
+        prefsRepo = UserPreferencesRepository(applicationContext)
         createNotificationChannel()
+        installFailSafeUncaughtHandler()
+        observePreferences()
+    }
+
+    /**
+     * §2 fix — a local UncaughtExceptionHandler so that if this service's process
+     * crashes unexpectedly, charging is restored to the hardware BEFORE the process
+     * dies, instead of leaving the sysfs node stuck at "charging disabled".
+     */
+    private fun installFailSafeUncaughtHandler() {
+        previousUncaughtHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            restoreChargingFailSafe()
+            val prev = previousUncaughtHandler
+            if (prev != null) {
+                prev.uncaughtException(thread, throwable)
+            } else {
+                Process.killProcess(Process.myPid())
+            }
+        }
+    }
+
+    private fun observePreferences() {
+        scope.launch {
+            prefsRepo.preferencesFlow.collect { state ->
+                currentActiveProfile = state.activeProfile
+                isChargeLimitEnabled = state.isChargeLimitEnabled
+                chargeLimitPct = state.chargeLimitPct
+                chargeSpeedMa = state.chargeSpeedMa
+                isThermalProtectEnabled = state.isThermalProtectEnabled
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -66,11 +144,15 @@ class MonAiService : Service() {
                 if (!isRunning) {
                     isRunning = true
                     startForeground(NOTIF_ID, buildNotification(AppFocusInfo("Initializing...", 0L), "--", "--", BatteryPowerInfo(false, 0, 0, 0.0)))
+                    scope.launch { prefsRepo.setLiveServiceRunning(true) }
+                    scope.launch { RootEngine.backupOriginalStateIfNeeded() }
                     startMonitoringLoop()
                 }
             }
             ACTION_STOP -> {
                 isRunning = false
+                restoreChargingFailSafe()
+                runBlocking { prefsRepo.setLiveServiceRunning(false) }
                 scope.cancel()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -81,6 +163,7 @@ class MonAiService : Service() {
                     val profile = OptProfile.valueOf(it)
                     currentActiveProfile = profile
                     scope.launch {
+                        prefsRepo.setActiveProfile(profile) // UI reflects this instantly via Flow (§6)
                         applyProfileFromService(profile)
                         // Trigger an immediate notification refresh right after the button tap
                         val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot())
@@ -94,6 +177,25 @@ class MonAiService : Service() {
         return START_STICKY
     }
 
+    /**
+     * §2 fix — the service being stopped/killed/removed from recents must never
+     * leave the hardware charger permanently disabled.
+     */
+    override fun onDestroy() {
+        restoreChargingFailSafe()
+        isRunning = false
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // App swiped away from recents — keep monitoring alive (START_STICKY already
+        // handles a subsequent OS-triggered restart), but make sure charging is safe
+        // for the window until the system respawns us.
+        restoreChargingFailSafe()
+        super.onTaskRemoved(rootIntent)
+    }
+
     private fun startMonitoringLoop() {
         scope.launch {
             while (isActive && isRunning) {
@@ -103,7 +205,7 @@ class MonAiService : Service() {
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                // Logic Smart Charge Limit & Thermal Protect
+                // Logic Smart Charge Limit
                 if (hasRoot && isChargeLimitEnabled) {
                     if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
                         ChargingEngine.setChargingEnabled(false)
@@ -114,15 +216,22 @@ class MonAiService : Service() {
                     }
                 }
 
-                if (hasRoot && isThermalProtectEnabled && bat.isCharging && bat.tempC > 42.0) {
-                    ChargingEngine.setChargeCurrentMaxMa(500) // Turunkan arus ke 500mA saat dingin
+                // §3 fix — Thermal Protection Hysteresis with auto-restore.
+                if (hasRoot && isThermalProtectEnabled && bat.isCharging) {
+                    if (bat.tempC > 42.0 && !isThermalThrottled) {
+                        ChargingEngine.setChargeCurrentMaxMa(500)
+                        isThermalThrottled = true
+                    } else if (bat.tempC < 38.0 && isThermalThrottled) {
+                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                        isThermalThrottled = false
+                    }
                 }
 
                 val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
-                delay(2000)
+                delay(MONITOR_INTERVAL_MS)
             }
         }
     }
@@ -146,8 +255,65 @@ class MonAiService : Service() {
         }
     }
 
+    // ── §5 fix — lighter focused-app detection ──────────────────────────
+    //
+    // Previously this ran `su dumpsys window ...` on every 2s tick, which is a
+    // real battery drain (a full root exec + window dump every 2 seconds,
+    // forever, while the live service is on). Now:
+    //   1) If PACKAGE_USAGE_STATS is granted, use UsageStatsManager — no root,
+    //      no process exec, negligible cost — every tick.
+    //   2) Otherwise fall back to root `dumpsys`, but only every
+    //      DUMPSYS_POLL_EVERY ticks (~8s) instead of every 2s. Battery/CPU
+    //      stats above are untouched and still refresh every 2s.
+
     private fun getFocusedAppInfo(ctx: Context, hasRoot: Boolean): AppFocusInfo {
+        getFocusedAppViaUsageStats(ctx)?.let {
+            lastFocusInfo = it
+            return it
+        }
+
         if (!hasRoot) return AppFocusInfo("System Active", 0L)
+
+        dumpsysPollTick++
+        if (dumpsysPollTick < DUMPSYS_POLL_EVERY) {
+            return lastFocusInfo
+        }
+        dumpsysPollTick = 0
+
+        val fresh = getFocusedAppViaDumpsys(ctx)
+        lastFocusInfo = fresh
+        return fresh
+    }
+
+    private fun hasUsageStatsPermission(ctx: Context): Boolean = try {
+        val appOps = ctx.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.packageName)
+        mode == AppOpsManager.MODE_ALLOWED
+    } catch (_: Exception) { false }
+
+    private fun getFocusedAppViaUsageStats(ctx: Context): AppFocusInfo? {
+        if (!hasUsageStatsPermission(ctx)) return null
+        return try {
+            val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val end = System.currentTimeMillis()
+            val begin = end - 15_000L
+            val events = usm.queryEvents(begin, end)
+            val event = UsageEvents.Event()
+            var lastPkg: String? = null
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && event.eventType == UsageEvents.Event.ACTIVITY_RESUMED)
+                ) {
+                    lastPkg = event.packageName
+                }
+            }
+            val pkg = lastPkg ?: return lastFocusInfo.takeIf { it.appLabel != "System Active" }
+            AppFocusInfo(labelFor(ctx, pkg), getAppRamMb(pkg, useRoot = false))
+        } catch (_: Exception) { null }
+    }
+
+    private fun getFocusedAppViaDumpsys(ctx: Context): AppFocusInfo {
         try {
             val r = RootEngine.su("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
             if (r.success && r.output.isNotBlank()) {
@@ -159,27 +325,26 @@ class MonAiService : Service() {
                     }
                     else -> ""
                 }
-
                 val cleanPkg = pkg.replace("{", "").replace("}", "").trim()
-
                 if (cleanPkg.isNotBlank() && cleanPkg.contains(".")) {
-                    val pm = ctx.packageManager
-                    val appLabel = try {
-                        val appInfo = pm.getApplicationInfo(cleanPkg, 0)
-                        pm.getApplicationLabel(appInfo).toString()
-                    } catch (_: Exception) {
-                        cleanPkg.split(".").last().replaceFirstChar { it.uppercase() }
-                    }
-
-                    val appRam = getAppRamMb(cleanPkg)
-                    return AppFocusInfo(appLabel, appRam)
+                    val appRam = getAppRamMb(cleanPkg, useRoot = true)
+                    return AppFocusInfo(labelFor(ctx, cleanPkg), appRam)
                 }
             }
         } catch (_: Exception) {}
         return AppFocusInfo("Home Screen", 0L)
     }
 
-    private fun getAppRamMb(pkgName: String): Long {
+    private fun labelFor(ctx: Context, pkgName: String): String = try {
+        val pm = ctx.packageManager
+        val appInfo = pm.getApplicationInfo(pkgName, 0)
+        pm.getApplicationLabel(appInfo).toString()
+    } catch (_: Exception) {
+        pkgName.substringAfterLast(".").replaceFirstChar { it.uppercase() }
+    }
+
+    private fun getAppRamMb(pkgName: String, useRoot: Boolean): Long {
+        if (!useRoot) return 0L
         return try {
             val r = RootEngine.su("dumpsys meminfo $pkgName | grep -m1 'TOTAL'")
             if (r.success && r.output.isNotBlank()) {
@@ -273,6 +438,8 @@ class MonAiService : Service() {
 
         val powerText = if (isChargePausedByLimit) {
             "Paused (Limit $chargeLimitPct%)"
+        } else if (isThermalThrottled) {
+            "Throttled (Thermal)"
         } else if (bat.isCharging) {
             "+${abs(bat.currentMa)} mA (Charging)"
         } else {
@@ -338,7 +505,7 @@ class MonAiService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.ic_launcher_foreground)
             .setCustomContentView(viewsCollapsed)
             .setCustomBigContentView(viewsExpanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())

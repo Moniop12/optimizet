@@ -53,4 +53,7 @@ dependencies {
     // Shizuku — ADB permission tanpa PC
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
+
+    // Jetpack DataStore — persistent state across process death / reboot
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.monai.optimizer.data.UserPreferencesRepository
 import com.monai.optimizer.optimizer.ChargingEngine
 import com.monai.optimizer.optimizer.CmdResult
 import com.monai.optimizer.optimizer.DeviceAnalyzer
@@ -62,7 +63,9 @@ class MainViewModel : ViewModel() {
         private set
     var chargeLimitPct by mutableStateOf(80f)
         private set
-    var chargeSpeedMa by mutableStateOf(1500)
+    var chargeSpeedMa by mutableStateOf(UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA)
+        private set
+    var isThermalProtectEnabled by mutableStateOf(false)
         private set
 
     val runningTools = mutableStateMapOf<String, Boolean>()
@@ -87,8 +90,16 @@ class MainViewModel : ViewModel() {
 
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private var isTickerRunning = false
+    private var isPrefsSyncRunning = false
+    private lateinit var prefsRepo: UserPreferencesRepository
 
     fun init(ctx: Context) {
+        RootEngine.init(ctx)
+        if (!::prefsRepo.isInitialized) {
+            prefsRepo = UserPreferencesRepository(ctx)
+            observePreferences() // §1/§6 fix — DataStore is the two-way source of truth
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             val root = RootEngine.hasRoot()
             val shz  = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
@@ -101,11 +112,33 @@ class MainViewModel : ViewModel() {
             }
 
             if (root) {
+                RootEngine.backupOriginalStateIfNeeded() // §4 fix — capture factory state once
                 val gvs = RootEngine.getGovernors()
                 withContext(Dispatchers.Main) { governors = gvs }
             }
 
             startRealTimeTicker(ctx)
+        }
+    }
+
+    /**
+     * §1/§6 fix — observes the persisted state so that if it changes from ANY
+     * source (this ViewModel, MonAiService, or a notification-button tap handled
+     * entirely in the service) the UI reflects it immediately via Flow/State.
+     */
+    private fun observePreferences() {
+        if (isPrefsSyncRunning) return
+        isPrefsSyncRunning = true
+        viewModelScope.launch {
+            prefsRepo.preferencesFlow.collect { state ->
+                activeProfile = state.activeProfile
+                isChargeLimitEnabled = state.isChargeLimitEnabled
+                chargeLimitPct = state.chargeLimitPct.toFloat()
+                chargeSpeedMa = state.chargeSpeedMa
+                isLiveServiceRunning = state.isLiveServiceRunning
+                isThermalProtectEnabled = state.isThermalProtectEnabled
+                MonAiService.currentActiveProfile = state.activeProfile
+            }
         }
     }
 
@@ -155,21 +188,41 @@ class MainViewModel : ViewModel() {
         chargeLimitPct = pct
         MonAiService.isChargeLimitEnabled = enabled
         MonAiService.chargeLimitPct = pct.toInt()
-        if (!enabled && hasRoot) {
-            viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setChargeLimit(enabled, pct.toInt())
+            if (!enabled && hasRoot) {
                 ChargingEngine.setChargingEnabled(true)
                 MonAiService.isChargePausedByLimit = false
             }
         }
     }
 
+    fun setThermalProtectEnabled(enabled: Boolean) {
+        isThermalProtectEnabled = enabled
+        MonAiService.isThermalProtectEnabled = enabled
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setThermalProtectEnabled(enabled)
+            if (!enabled && hasRoot && MonAiService.isThermalThrottled) {
+                ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                MonAiService.isThermalThrottled = false
+            }
+        }
+    }
+
+    /**
+     * Charging speed is now a free-form slider (100–5000 mA, e.g. for fast-charging
+     * capable hardware) instead of a fixed set of hardcoded chips.
+     */
     fun setChargeSpeed(mA: Int) {
-        chargeSpeedMa = mA
-        if (hasRoot) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val r = ChargingEngine.setChargeCurrentMaxMa(mA)
+        val clamped = mA.coerceIn(UserPreferencesRepository.MIN_CHARGE_SPEED_MA, UserPreferencesRepository.MAX_CHARGE_SPEED_MA)
+        chargeSpeedMa = clamped
+        MonAiService.chargeSpeedMa = clamped
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setChargeSpeedMa(clamped)
+            if (hasRoot) {
+                val r = ChargingEngine.setChargeCurrentMaxMa(clamped)
                 withContext(Dispatchers.Main) {
-                    statusMsg = if (r.success) "✓ Charging speed set to $mA mA" else "✗ Kernel does not support current limiting"
+                    statusMsg = if (r.success) "✓ Charging speed set to $clamped mA" else "✗ Kernel does not support current limiting"
                 }
             }
         }
@@ -248,6 +301,8 @@ class MainViewModel : ViewModel() {
                 delay(40)
             }
 
+            prefsRepo.setActiveProfile(profile) // §1/§6 fix — persisted + reflected everywhere instantly
+
             withContext(Dispatchers.Main) {
                 progress = 1f
                 statusMsg = "Done ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
@@ -268,6 +323,8 @@ class MainViewModel : ViewModel() {
 
             val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
             val newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
+
+            prefsRepo.setActiveProfile(null)
 
             withContext(Dispatchers.Main) {
                 progress = 1f

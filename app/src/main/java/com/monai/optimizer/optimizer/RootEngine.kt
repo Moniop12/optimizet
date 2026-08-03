@@ -1,11 +1,48 @@
 package com.monai.optimizer.optimizer
 
+import android.content.Context
 import android.util.Log
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
+private val Context.kernelBackupStore by preferencesDataStore(name = "monai_kernel_backup")
+
+/**
+ * Snapshot of the device's factory/original kernel & sysctl values, captured once
+ * on first launch (while root is available) so that "Reset to Defaults" restores
+ * the ACTUAL original state of this specific device instead of a hardcoded guess.
+ */
+data class KernelBackupSnapshot(
+    val governor: String,
+    val swappiness: String,
+    val dirtyRatio: String,
+    val dirtyBackgroundRatio: String,
+    val vfsCachePressure: String,
+)
+
 object RootEngine {
     private const val T = "RootEngine"
+
+    private object BackupKeys {
+        val DONE = booleanPreferencesKey("backup_done")
+        val GOVERNOR = stringPreferencesKey("backup_governor")
+        val SWAPPINESS = stringPreferencesKey("backup_swappiness")
+        val DIRTY_RATIO = stringPreferencesKey("backup_dirty_ratio")
+        val DIRTY_BG_RATIO = stringPreferencesKey("backup_dirty_bg_ratio")
+        val VFS_CACHE_PRESSURE = stringPreferencesKey("backup_vfs_cache_pressure")
+    }
+
+    private var appContext: Context? = null
+
+    /** Must be called once (Application/Activity/Service onCreate) before using the backup APIs. */
+    fun init(context: Context) {
+        if (appContext == null) appContext = context.applicationContext
+    }
 
     fun hasRoot(): Boolean = try {
         val p   = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
@@ -43,6 +80,56 @@ object RootEngine {
         return su(cmd)
     }
 
+    private fun readSysctl(key: String): String {
+        val r = su("sysctl -n $key 2>/dev/null")
+        return r.output.trim()
+    }
+
+    // ── Original State Backup (captured once, on first launch) ────────
+
+    /**
+     * Reads the device's current (factory/original) governor + sysctl values and
+     * persists them to DataStore, but only the very first time this is called
+     * successfully (guarded by [BackupKeys.DONE]) — subsequent app-modified values
+     * will never overwrite the true original snapshot.
+     */
+    suspend fun backupOriginalStateIfNeeded() {
+        val ctx = appContext ?: return
+        if (!hasRoot()) return
+
+        val already = ctx.kernelBackupStore.data.first()[BackupKeys.DONE] ?: false
+        if (already) return
+
+        val gov = getCurrentGovernor().ifBlank { "schedutil" }
+        val swap = readSysctl("vm.swappiness").ifBlank { "60" }
+        val dirty = readSysctl("vm.dirty_ratio").ifBlank { "20" }
+        val dirtyBg = readSysctl("vm.dirty_background_ratio").ifBlank { "10" }
+        val vfs = readSysctl("vm.vfs_cache_pressure").ifBlank { "100" }
+
+        ctx.kernelBackupStore.edit { prefs ->
+            prefs[BackupKeys.GOVERNOR] = gov
+            prefs[BackupKeys.SWAPPINESS] = swap
+            prefs[BackupKeys.DIRTY_RATIO] = dirty
+            prefs[BackupKeys.DIRTY_BG_RATIO] = dirtyBg
+            prefs[BackupKeys.VFS_CACHE_PRESSURE] = vfs
+            prefs[BackupKeys.DONE] = true
+        }
+        Log.d(T, "Original kernel state backed up: gov=$gov swap=$swap dirty=$dirty dirtyBg=$dirtyBg vfs=$vfs")
+    }
+
+    suspend fun getBackupSnapshot(): KernelBackupSnapshot? {
+        val ctx = appContext ?: return null
+        val prefs = ctx.kernelBackupStore.data.first()
+        if (prefs[BackupKeys.DONE] != true) return null
+        return KernelBackupSnapshot(
+            governor = prefs[BackupKeys.GOVERNOR] ?: "schedutil",
+            swappiness = prefs[BackupKeys.SWAPPINESS] ?: "60",
+            dirtyRatio = prefs[BackupKeys.DIRTY_RATIO] ?: "20",
+            dirtyBackgroundRatio = prefs[BackupKeys.DIRTY_BG_RATIO] ?: "10",
+            vfsCachePressure = prefs[BackupKeys.VFS_CACHE_PRESSURE] ?: "100",
+        )
+    }
+
     // ── Profiles ──────────────────────────────────────────────────────
 
     fun applyPerformance(): List<CmdResult> {
@@ -78,18 +165,33 @@ object RootEngine {
         )
     }
 
-    // ── Reset to Factory Defaults ─────────────────────────────────────
+    // ── Reset to Defaults (dynamic — uses the real device backup) ──────
 
-    fun resetToDefaults(): List<CmdResult> {
+    /**
+     * Restores governor + sysctl values captured in [backupOriginalStateIfNeeded].
+     * Falls back to previous hardcoded-ish safe defaults only if no backup snapshot
+     * exists yet (e.g. root was unavailable on first launch).
+     */
+    suspend fun resetToDefaults(): List<CmdResult> {
+        val snap = getBackupSnapshot()
         val avail = getGovernors()
-        val defaultGov = if (avail.contains("schedutil")) "schedutil" else avail.firstOrNull() ?: "interactive"
+
+        val defaultGov = when {
+            snap != null && avail.contains(snap.governor) -> snap.governor
+            avail.contains("schedutil") -> "schedutil"
+            else -> avail.firstOrNull() ?: "interactive"
+        }
+        val swappiness = snap?.swappiness ?: "60"
+        val dirtyRatio = snap?.dirtyRatio ?: "20"
+        val dirtyBgRatio = snap?.dirtyBackgroundRatio ?: "10"
+        val vfsCachePressure = snap?.vfsCachePressure ?: "100"
 
         return listOf(
             setGovernor(defaultGov),
-            su("sysctl -w vm.swappiness=60"),
-            su("sysctl -w vm.dirty_ratio=20"),
-            su("sysctl -w vm.dirty_background_ratio=10"),
-            su("sysctl -w vm.vfs_cache_pressure=100"),
+            su("sysctl -w vm.swappiness=$swappiness"),
+            su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
+            su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),
+            su("sysctl -w vm.vfs_cache_pressure=$vfsCachePressure"),
             su("settings delete global window_animation_scale 2>/dev/null || true"),
             su("settings delete global transition_animation_scale 2>/dev/null || true"),
             su("settings delete global animator_duration_scale 2>/dev/null || true"),
