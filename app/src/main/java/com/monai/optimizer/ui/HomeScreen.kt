@@ -43,7 +43,6 @@ import com.monai.optimizer.ui.theme.*
 fun HomeScreen(vm: MainViewModel) {
     val ctx = LocalContext.current
 
-    // Auto-request the Android 13+ notification permission before starting the live service.
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -86,12 +85,11 @@ fun HomeScreen(vm: MainViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                     )
-                    Text("AI Engine & Hardware Tuner", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text("System Optimizer", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                // Live notification service toggle with automatic permission request.
                 IconButton(onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -101,10 +99,10 @@ fun HomeScreen(vm: MainViewModel) {
                     }
                 }) {
                     Icon(
-    if (vm.isLiveServiceRunning) Icons.Filled.NotificationsActive else Icons.Default.Notifications,
-    "Live Service",
-    tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextTertiary
-)
+                        if (vm.isLiveServiceRunning) Icons.Filled.NotificationsActive else Icons.Default.Notifications,
+                        "Live Service",
+                        tint = if (vm.isLiveServiceRunning) EmeraldGlow else TextTertiary
+                    )
                 }
 
                 val rotation by animateFloatAsState(
@@ -120,13 +118,67 @@ fun HomeScreen(vm: MainViewModel) {
 
         DeviceOverviewCard(vm)
 
-        vm.spec?.let { AiRecCard(it.recommended, vm) }
+        // ============================================================
+        // AUTO OPTIMIZER CARD (replaces AI Recommendation)
+        // ============================================================
+        AutoOptimizerCard(vm)
 
-        SectionLabel("OPTIMIZATION PROFILE")
+        SectionLabel("MANUAL PROFILES")
         ProfileSelectorRow(vm)
 
         AnimatedVisibility(vm.isOptimizing) { ProgressCard(vm) }
         Spacer(Modifier.height(6.dp))
+    }
+}
+
+// ============================================================
+// AUTO OPTIMIZER CARD with switch and status
+// ============================================================
+@Composable
+fun AutoOptimizerCard(vm: MainViewModel) {
+    val statusText = if (vm.aiOptimizerEnabled) {
+        if (vm.hasRoot) "Active: Dynamic thermal, memory & app-aware tuning" else "Requires root access"
+    } else {
+        "Disabled - tap switch to enable auto optimization"
+    }
+
+    AppCard(accent = CyanGlow, containerColor = CyanGlow.copy(alpha = 0.08f)) {
+        Row(
+            Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
+            Column(Modifier.weight(1f)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text(
+                        "Auto Optimizer",
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Switch(
+                        checked = vm.aiOptimizerEnabled,
+                        onCheckedChange = { vm.toggleAiOptimizer() },
+                        enabled = vm.hasRoot,
+                        colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
+                    )
+                }
+                Text(
+                    statusText,
+                    color = if (vm.aiOptimizerEnabled) CyanGlow else TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (vm.aiOptimizerEnabled && vm.hasRoot) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                        StatusPill("Thermal", true, OrangeGlow)
+                        StatusPill("Memory", true, EmeraldGlow)
+                        StatusPill("App-Aware", true, PurpleGlow)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -195,31 +247,6 @@ fun DeviceOverviewCard(vm: MainViewModel) {
     }
 }
 
-@Composable fun AiRecCard(profile: OptProfile, vm: MainViewModel) {
-    val (label, desc, accent) = when (profile) {
-        OptProfile.PERFORMANCE -> Triple("Performance", "High-end hardware — maximum throughput", OrangeGlow)
-        OptProfile.BALANCED    -> Triple("Balanced", "Mid-range device — balanced efficiency", CyanGlow)
-        OptProfile.BATTERY     -> Triple("Battery Saver", "Limited RAM — conserve system resources", EmeraldGlow)
-    }
-    AppCard(accent = accent, containerColor = accent.copy(alpha = 0.08f)) {
-        Row(Modifier.padding(14.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
-            IconBadge(Icons.Filled.AutoAwesome, accent)
-            Column(Modifier.weight(1f)) {
-                Text("AI Recommendation", color = TextTertiary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
-                Text(label, color = accent, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(desc, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-            }
-            Button(
-                onClick = { vm.applyProfile(profile) },
-                enabled = !vm.isOptimizing,
-                colors = ButtonDefaults.buttonColors(containerColor = accent),
-                shape = RoundedCornerShape(9.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) { Text("Apply", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-        }
-    }
-}
-
 @Composable
 fun ProfileSelectorRow(vm: MainViewModel) {
     val profiles = listOf(
@@ -244,7 +271,7 @@ fun ProfileSelectorRow(vm: MainViewModel) {
                                 color = if (active) accent else GlassBorder,
                                 shape = RoundedCornerShape(12.dp)
                             )
-                            .clickable(enabled = !vm.isOptimizing) { vm.applyProfile(profile) }
+                            .clickable(enabled = !vm.isOptimizing && !vm.aiOptimizerEnabled) { vm.applyProfile(profile) }
                             .padding(vertical = 12.dp, horizontal = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -277,10 +304,15 @@ fun ProfileSelectorRow(vm: MainViewModel) {
                 }
             }
 
-            val activeDesc = profiles.firstOrNull { it.first == vm.activeProfile }?.second?.second
+            val activeDesc = if (vm.aiOptimizerEnabled) {
+                "Auto Optimizer is active - manual profiles are disabled"
+            } else {
+                profiles.firstOrNull { it.first == vm.activeProfile }?.second?.second
+                    ?: "Select a profile to tune CPU governor, memory and doze behavior."
+            }
             Text(
-                activeDesc ?: "Select a profile to tune CPU governor, memory and doze behavior.",
-                color = TextTertiary,
+                activeDesc,
+                color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 2.dp)
             )
@@ -288,7 +320,8 @@ fun ProfileSelectorRow(vm: MainViewModel) {
     }
 }
 
-@Composable fun ProgressCard(vm: MainViewModel) {
+@Composable
+fun ProgressCard(vm: MainViewModel) {
     AppCard {
         Column(Modifier.padding(14.dp), Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

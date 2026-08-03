@@ -39,25 +39,6 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             InfoBanner(vm.statusMsg)
         }
 
-        // ============================================================
-        // AI OPTIMIZER TOGGLE
-        // ============================================================
-        SectionLabel("AI OPTIMIZER")
-        AppCard(accent = CyanGlow) {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
-                Column(Modifier.weight(1f)) {
-                    Text("Smart AI Optimizer", color = TextPrimary, style = MaterialTheme.typography.titleSmall)
-                    Text("Dynamic thermal, memory & app-aware tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(
-                    checked = vm.aiOptimizerEnabled,
-                    onCheckedChange = { vm.toggleAiOptimizer() },
-                    colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
-                )
-            }
-        }
-
         SectionLabel("POWER")
         NavSummaryCard(
             icon = Icons.Filled.BatteryChargingFull,
@@ -136,7 +117,8 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
     }
 }
 
-@Composable fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
+@Composable
+fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
     AppCard(accent = RedErr, containerColor = RedErr.copy(alpha = 0.07f)) {
         Row(Modifier.padding(12.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             IconBadge(Icons.Filled.RestartAlt, RedErr, size = 34.dp, iconSize = 16.dp)
@@ -157,7 +139,8 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
     }
 }
 
-@Composable fun GovernorCard(vm: MainViewModel) {
+@Composable
+fun GovernorCard(vm: MainViewModel) {
     AppCard {
         Column(Modifier.padding(12.dp), Arrangement.spacedBy(6.dp)) {
             Text("CPU Governor Control", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
