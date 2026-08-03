@@ -39,6 +39,25 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             InfoBanner(vm.statusMsg)
         }
 
+        // ============================================================
+        // AI OPTIMIZER TOGGLE
+        // ============================================================
+        SectionLabel("AI OPTIMIZER")
+        AppCard(accent = CyanGlow) {
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
+                Column(Modifier.weight(1f)) {
+                    Text("Smart AI Optimizer", color = TextPrimary, style = MaterialTheme.typography.titleSmall)
+                    Text("Dynamic thermal, memory & app-aware tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(
+                    checked = vm.aiOptimizerEnabled,
+                    onCheckedChange = { vm.toggleAiOptimizer() },
+                    colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
+                )
+            }
+        }
+
         SectionLabel("POWER")
         NavSummaryCard(
             icon = Icons.Filled.BatteryChargingFull,

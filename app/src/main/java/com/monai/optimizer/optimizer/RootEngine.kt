@@ -7,16 +7,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import java.io.File
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
 private val Context.kernelBackupStore by preferencesDataStore(name = "monai_kernel_backup")
 
-/**
- * Snapshot of the device's factory/original kernel & sysctl values, captured once
- * on first launch (while root is available) so that "Reset to Defaults" restores
- * the ACTUAL original state of this specific device instead of a hardcoded guess.
- */
 data class KernelBackupSnapshot(
     val governor: String,
     val swappiness: String,
@@ -39,7 +35,6 @@ object RootEngine {
 
     private var appContext: Context? = null
 
-    /** Must be called once (Application/Activity/Service onCreate) before using the backup APIs. */
     fun init(context: Context) {
         if (appContext == null) appContext = context.applicationContext
     }
@@ -85,14 +80,8 @@ object RootEngine {
         return r.output.trim()
     }
 
-    // ── Original State Backup (captured once, on first launch) ────────
+    // ── Original State Backup ────────────────────────────────────────
 
-    /**
-     * Reads the device's current (factory/original) governor + sysctl values and
-     * persists them to DataStore, but only the very first time this is called
-     * successfully (guarded by [BackupKeys.DONE]) — subsequent app-modified values
-     * will never overwrite the true original snapshot.
-     */
     suspend fun backupOriginalStateIfNeeded() {
         val ctx = appContext ?: return
         if (!hasRoot()) return
@@ -165,13 +154,8 @@ object RootEngine {
         )
     }
 
-    // ── Reset to Defaults (dynamic — uses the real device backup) ──────
+    // ── Reset to Defaults ──────────────────────────────────────────────
 
-    /**
-     * Restores governor + sysctl values captured in [backupOriginalStateIfNeeded].
-     * Falls back to previous hardcoded-ish safe defaults only if no backup snapshot
-     * exists yet (e.g. root was unavailable on first launch).
-     */
     suspend fun resetToDefaults(): List<CmdResult> {
         val snap = getBackupSnapshot()
         val avail = getGovernors()
@@ -200,26 +184,146 @@ object RootEngine {
         )
     }
 
-    // ── Info Helpers ──────────────────────────────────────────────────
+    // ── Info Helpers (modifikasi) ──────────────────────────────────────
 
-    fun getCpuFreqInfo(): String {
-        val cur = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
-        val max = su("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
-        return if (max > 0) "${cur}/${max}MHz" else "N/A"
+    fun getMaxFreqForCpu(cpu: Int): Int {
+        return try {
+            val path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq"
+            File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()?.div(1000L) ?: 0
+        } catch (_: Exception) { 0 }
     }
 
-    fun getCpuTemp(): String {
-        val paths = listOf("/sys/class/thermal/thermal_zone0/temp", "/sys/class/thermal/thermal_zone1/temp")
-        for (p in paths) {
-            val r = su("cat $p 2>/dev/null")
-            if (r.success && r.output.isNotBlank()) {
-                val raw = r.output.trim().toDoubleOrNull() ?: continue
-                val c = if (raw > 1000.0) raw / 1000.0 else raw
-                if (c in 10.0..95.0) return "%.1f°C".format(c)
+    fun getCpuClusters(): List<Int> {
+        val clusterMap = mutableMapOf<Int, MutableList<Int>>()
+        for (i in 0 until Runtime.getRuntime().availableProcessors()) {
+            val maxFreq = getMaxFreqForCpu(i)
+            if (maxFreq == 0) continue
+            var found = false
+            for ((clusterId, list) in clusterMap) {
+                val existingMax = list.maxOrNull() ?: 0
+                if (kotlin.math.abs(existingMax - maxFreq) < 100) {
+                    list.add(maxFreq)
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                clusterMap[clusterMap.size] = mutableListOf(maxFreq)
             }
         }
-        return "N/A"
+        return clusterMap.keys.sorted()
     }
+
+    private fun getClusterMaxFreqs(): Map<Int, Int> {
+        val clusterMap = mutableMapOf<Int, MutableList<Int>>()
+        for (i in 0 until Runtime.getRuntime().availableProcessors()) {
+            val maxFreq = getMaxFreqForCpu(i)
+            if (maxFreq == 0) continue
+            var found = false
+            for ((clusterId, list) in clusterMap) {
+                val existingMax = list.maxOrNull() ?: 0
+                if (kotlin.math.abs(existingMax - maxFreq) < 100) {
+                    list.add(maxFreq)
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                clusterMap[clusterMap.size] = mutableListOf(maxFreq)
+            }
+        }
+        return clusterMap.mapValues { it.value.maxOrNull() ?: 0 }
+    }
+
+    fun getCurrentMaxFreqInfo(): String {
+        val curFreqs = (0 until Runtime.getRuntime().availableProcessors())
+            .map { "/sys/devices/system/cpu/cpu$it/cpufreq/scaling_cur_freq" }
+            .mapNotNull { path ->
+                File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
+            }
+            .filter { it > 0 }
+        val curMax = curFreqs.maxOrNull()?.div(1000L) ?: 0L
+        val maxFreq = getClusterMaxFreqs().values.maxOrNull() ?: 0
+        return if (maxFreq > 0) "${curMax}/${maxFreq}MHz" else "N/A"
+    }
+
+    // Override getCpuFreqInfo to use new method
+    fun getCpuFreqInfo(): String = getCurrentMaxFreqInfo()
+
+    // Dynamic thermal throttling
+    fun applyDynamicThermalProfile(tempC: Double): List<CmdResult> {
+        val clusterMax = getClusterMaxFreqs()
+        if (clusterMax.isEmpty()) return emptyList()
+
+        val cmds = mutableListOf<String>()
+        var littleRatio = 1.0
+        var bigRatio = 1.0
+
+        when {
+            tempC > 45.0 -> { littleRatio = 0.4; bigRatio = 0.3 }
+            tempC > 42.0 -> { littleRatio = 0.7; bigRatio = 0.5 }
+            tempC > 39.0 -> { littleRatio = 0.9; bigRatio = 0.8 }
+            else -> { littleRatio = 1.0; bigRatio = 1.0 }
+        }
+
+        val sortedClusters = clusterMax.entries.sortedBy { it.value }
+        for ((idx, entry) in sortedClusters.withIndex()) {
+            val clusterId = entry.key
+            val baseFreq = entry.value
+            val ratio = if (idx == 0) littleRatio else bigRatio
+            val targetFreq = (baseFreq * ratio).toInt()
+            for (cpu in 0 until Runtime.getRuntime().availableProcessors()) {
+                val cpuMax = getMaxFreqForCpu(cpu)
+                if (cpuMax == 0) continue
+                if (kotlin.math.abs(cpuMax - baseFreq) < 100) {
+                    val path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_max_freq"
+                    cmds.add("[ -f $path ] && echo ${targetFreq * 1000} > $path")
+                }
+            }
+        }
+
+        return if (cmds.isNotEmpty()) listOf(su(cmds.joinToString("; "))) else emptyList()
+    }
+
+    fun adaptiveMemoryTune(availRamMb: Long): CmdResult {
+        val swappiness = when {
+            availRamMb < 500 -> 80
+            availRamMb < 1000 -> 50
+            else -> 20
+        }
+        return su("sysctl -w vm.swappiness=$swappiness")
+    }
+
+    // Auto-detect thermal zone
+    fun findThermalZone(): String {
+        val base = "/sys/class/thermal"
+        val dir = File(base)
+        if (dir.exists()) {
+            dir.listFiles()?.forEach { zoneDir ->
+                val typeFile = File(zoneDir, "type")
+                if (typeFile.exists()) {
+                    val type = typeFile.readText().trim().lowercase()
+                    if (type.contains("cpu-thermal") || type.contains("tsens") || type.contains("bcl") || type == "cpu-0-usr") {
+                        return File(zoneDir, "temp").absolutePath
+                    }
+                }
+            }
+            val fallback = File(base, "thermal_zone0/temp")
+            if (fallback.exists()) return fallback.absolutePath
+        }
+        return "/sys/class/thermal/thermal_zone0/temp"
+    }
+
+    fun getCpuTempDynamic(): String {
+        val zone = findThermalZone()
+        return try {
+            val raw = File(zone).readText().trim().toDoubleOrNull() ?: 0.0
+            val celsius = if (raw > 1000) raw / 1000.0 else raw
+            if (celsius in 10.0..95.0) String.format("%.1f°C", celsius) else "N/A"
+        } catch (_: Exception) { "N/A" }
+    }
+
+    override fun getCpuTemp(): String = getCpuTempDynamic()
 
     fun getZramInfo(): String {
         val used = su("cat /sys/block/zram0/mem_used_total 2>/dev/null").output.trim().toLongOrNull()?.div(1048576L) ?: 0L

@@ -58,7 +58,7 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
-    // Smart Charging Control States
+    // Smart Charging
     var isChargeLimitEnabled by mutableStateOf(false)
         private set
     var chargeLimitPct by mutableStateOf(80f)
@@ -68,9 +68,12 @@ class MainViewModel : ViewModel() {
     var isThermalProtectEnabled by mutableStateOf(false)
         private set
 
+    // AI Optimizer mode
+    var aiOptimizerEnabled by mutableStateOf(false)
+        private set
+
     val runningTools = mutableStateMapOf<String, Boolean>()
 
-    // Real-Time Stats
     var cpuFreq by mutableStateOf("--")
         private set
     var cpuTemp by mutableStateOf("--")
@@ -97,7 +100,7 @@ class MainViewModel : ViewModel() {
         RootEngine.init(ctx)
         if (!::prefsRepo.isInitialized) {
             prefsRepo = UserPreferencesRepository(ctx)
-            observePreferences() // §1/§6 fix — DataStore is the two-way source of truth
+            observePreferences()
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -112,7 +115,7 @@ class MainViewModel : ViewModel() {
             }
 
             if (root) {
-                RootEngine.backupOriginalStateIfNeeded() // §4 fix — capture factory state once
+                RootEngine.backupOriginalStateIfNeeded()
                 val gvs = RootEngine.getGovernors()
                 withContext(Dispatchers.Main) { governors = gvs }
             }
@@ -121,11 +124,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /**
-     * §1/§6 fix — observes the persisted state so that if it changes from ANY
-     * source (this ViewModel, MonAiService, or a notification-button tap handled
-     * entirely in the service) the UI reflects it immediately via Flow/State.
-     */
     private fun observePreferences() {
         if (isPrefsSyncRunning) return
         isPrefsSyncRunning = true
@@ -183,6 +181,12 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun toggleAiOptimizer() {
+        aiOptimizerEnabled = !aiOptimizerEnabled
+        MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
+        // Optionally save to DataStore for persistence
+    }
+
     fun setChargeLimit(enabled: Boolean, pct: Float) {
         isChargeLimitEnabled = enabled
         chargeLimitPct = pct
@@ -209,10 +213,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Charging speed is now a free-form slider (100–5000 mA, e.g. for fast-charging
-     * capable hardware) instead of a fixed set of hardcoded chips.
-     */
     fun setChargeSpeed(mA: Int) {
         val clamped = mA.coerceIn(UserPreferencesRepository.MIN_CHARGE_SPEED_MA, UserPreferencesRepository.MAX_CHARGE_SPEED_MA)
         chargeSpeedMa = clamped
@@ -222,7 +222,7 @@ class MainViewModel : ViewModel() {
             if (hasRoot) {
                 val r = ChargingEngine.setChargeCurrentMaxMa(clamped)
                 withContext(Dispatchers.Main) {
-                    statusMsg = if (r.success) "✓ Charging speed set to $clamped mA" else "✗ Kernel does not support current limiting"
+                    statusMsg = if (r.success) "Charging speed set to $clamped mA" else "Kernel does not support current limiting"
                 }
             }
         }
@@ -301,11 +301,11 @@ class MainViewModel : ViewModel() {
                 delay(40)
             }
 
-            prefsRepo.setActiveProfile(profile) // §1/§6 fix — persisted + reflected everywhere instantly
+            prefsRepo.setActiveProfile(profile)
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "Done ✓ (${newLog.count { it.success }}/${newLog.size} OK)"
+                statusMsg = "Done (${newLog.count { it.success }}/${newLog.size} OK)"
                 activeProfile = profile
                 MonAiService.currentActiveProfile = profile
                 log = newLog + log
@@ -328,7 +328,7 @@ class MainViewModel : ViewModel() {
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "✓ Successfully reset to factory defaults!"
+                statusMsg = "Successfully reset to factory defaults"
                 activeProfile = null
                 MonAiService.currentActiveProfile = null
                 log = newLog + log
@@ -341,8 +341,8 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
-                if (r.success) { currentGov = gov; statusMsg = "✓ CPU Governor -> $gov" }
-                else statusMsg = "✗ Failed to set $gov"
+                if (r.success) { currentGov = gov; statusMsg = "CPU Governor -> $gov" }
+                else statusMsg = "Failed to set $gov"
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
@@ -368,7 +368,7 @@ class MainViewModel : ViewModel() {
             delay(200)
             withContext(Dispatchers.Main) {
                 runningTools[toolId] = false
-                statusMsg = if (success) "✓ $label succeeded" else "✗ $label failed"
+                statusMsg = if (success) "$label succeeded" else "$label failed"
                 log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
             }
         }

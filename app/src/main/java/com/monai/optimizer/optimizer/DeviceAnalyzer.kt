@@ -56,7 +56,6 @@ object DeviceAnalyzer {
         )
     }
 
-    // Converts usable RAM (e.g. 3043MB) into the estimated manufacturer physical RAM (4GB)
     private fun calculatePhysicalRamGb(usableMb: Long): Int {
         val gb = usableMb / 1024.0
         return when {
@@ -79,8 +78,15 @@ object DeviceAnalyzer {
             ?: Build.HARDWARE
     } catch (_: Exception) { Build.HARDWARE }
 
-    private fun readFreq(): Int = try {
-        val f = File("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq")
-        if (f.exists()) f.readText().trim().toLong().div(1000L).toInt() else 0
-    } catch (_: Exception) { 0 }
+    // Perbaikan: baca semua core, ambil max tertinggi
+    private fun readFreq(): Int {
+        try {
+            val maxFreqs = (0 until Runtime.getRuntime().availableProcessors())
+                .map { "/sys/devices/system/cpu/cpu$it/cpufreq/cpuinfo_max_freq" }
+                .mapNotNull { path ->
+                    File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
+                }
+            return (maxFreqs.maxOrNull() ?: 0L).div(1000L).toInt()
+        } catch (_: Exception) { return 0 }
+    }
 }
