@@ -6,7 +6,6 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.AppOpsManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
