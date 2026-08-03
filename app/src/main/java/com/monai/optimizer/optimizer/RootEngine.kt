@@ -40,17 +40,17 @@ object RootEngine {
     }
 
     fun hasRoot(): Boolean = try {
-        val p   = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
+        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
         val out = p.inputStream.bufferedReader().readLine() ?: ""
         p.waitFor()
         out.trim() == "ok"
     } catch (_: Exception) { false }
 
     fun su(cmd: String): CmdResult = try {
-        val p   = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
         val out = p.inputStream.bufferedReader().readText().trim()
         val err = p.errorStream.bufferedReader().readText().trim()
-        val rc  = p.waitFor()
+        val rc = p.waitFor()
         Log.d(T, "[$rc] $cmd")
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
@@ -184,12 +184,12 @@ object RootEngine {
         )
     }
 
-    // ── Info Helpers (modifikasi) ──────────────────────────────────────
+    // ── Enhanced Info Helpers ──────────────────────────────────────────
 
     fun getMaxFreqForCpu(cpu: Int): Int {
         return try {
             val path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq"
-            File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()?.div(1000L) ?: 0
+            File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
         } catch (_: Exception) { 0 }
     }
 
@@ -247,10 +247,11 @@ object RootEngine {
         return if (maxFreq > 0) "${curMax}/${maxFreq}MHz" else "N/A"
     }
 
-    // Override getCpuFreqInfo to use new method
+    // Override existing getCpuFreqInfo with new implementation
     fun getCpuFreqInfo(): String = getCurrentMaxFreqInfo()
 
-    // Dynamic thermal throttling
+    // ── Dynamic thermal throttling ────────────────────────────────────
+
     fun applyDynamicThermalProfile(tempC: Double): List<CmdResult> {
         val clusterMax = getClusterMaxFreqs()
         if (clusterMax.isEmpty()) return emptyList()
@@ -268,7 +269,6 @@ object RootEngine {
 
         val sortedClusters = clusterMax.entries.sortedBy { it.value }
         for ((idx, entry) in sortedClusters.withIndex()) {
-            val clusterId = entry.key
             val baseFreq = entry.value
             val ratio = if (idx == 0) littleRatio else bigRatio
             val targetFreq = (baseFreq * ratio).toInt()
@@ -294,7 +294,8 @@ object RootEngine {
         return su("sysctl -w vm.swappiness=$swappiness")
     }
 
-    // Auto-detect thermal zone
+    // ── Auto-detect thermal zone ─────────────────────────────────────
+
     fun findThermalZone(): String {
         val base = "/sys/class/thermal"
         val dir = File(base)
@@ -323,7 +324,10 @@ object RootEngine {
         } catch (_: Exception) { "N/A" }
     }
 
-    override fun getCpuTemp(): String = getCpuTempDynamic()
+    // Override existing getCpuTemp with dynamic version
+    fun getCpuTemp(): String = getCpuTempDynamic()
+
+    // ── Other info helpers ────────────────────────────────────────────
 
     fun getZramInfo(): String {
         val used = su("cat /sys/block/zram0/mem_used_total 2>/dev/null").output.trim().toLongOrNull()?.div(1048576L) ?: 0L
