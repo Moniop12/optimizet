@@ -58,7 +58,6 @@ class MainViewModel : ViewModel() {
     var log by mutableStateOf<List<LogEntry>>(emptyList())
         private set
 
-    // Smart Charging
     var isChargeLimitEnabled by mutableStateOf(false)
         private set
     var chargeLimitPct by mutableStateOf(80f)
@@ -68,7 +67,6 @@ class MainViewModel : ViewModel() {
     var isThermalProtectEnabled by mutableStateOf(false)
         private set
 
-    // AI Optimizer mode
     var aiOptimizerEnabled by mutableStateOf(false)
         private set
 
@@ -105,8 +103,8 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             val root = RootEngine.hasRoot()
-            val shz  = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
-            val dev  = DeviceAnalyzer.analyze(ctx, root, shz)
+            val shz = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
+            val dev = DeviceAnalyzer.analyze(ctx, root, shz)
 
             withContext(Dispatchers.Main) {
                 hasRoot = root
@@ -135,7 +133,9 @@ class MainViewModel : ViewModel() {
                 chargeSpeedMa = state.chargeSpeedMa
                 isLiveServiceRunning = state.isLiveServiceRunning
                 isThermalProtectEnabled = state.isThermalProtectEnabled
+                aiOptimizerEnabled = state.aiOptimizerEnabled
                 MonAiService.currentActiveProfile = state.activeProfile
+                MonAiService.aiOptimizerEnabled = state.aiOptimizerEnabled
             }
         }
     }
@@ -184,7 +184,9 @@ class MainViewModel : ViewModel() {
     fun toggleAiOptimizer() {
         aiOptimizerEnabled = !aiOptimizerEnabled
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
-        // Optionally save to DataStore for persistence
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setAiOptimizerEnabled(aiOptimizerEnabled)
+        }
     }
 
     fun setChargeLimit(enabled: Boolean, pct: Float) {
@@ -262,19 +264,21 @@ class MainViewModel : ViewModel() {
         if (isOptimizing) return
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                isOptimizing = true; progress = 0f; statusMsg = "Running optimization..."
+                isOptimizing = true
+                progress = 0f
+                statusMsg = "Running optimization..."
             }
 
             val rootCmds: List<CmdResult> = if (hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> RootEngine.applyPerformance()
-                OptProfile.BALANCED    -> RootEngine.applyBalanced()
-                OptProfile.BATTERY     -> RootEngine.applyBattery()
+                OptProfile.BALANCED -> RootEngine.applyBalanced()
+                OptProfile.BATTERY -> RootEngine.applyBattery()
             } else emptyList()
 
             val shzCmds: List<SCmd> = if (hasShizuku && !hasRoot) when (profile) {
                 OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance()
-                OptProfile.BALANCED    -> ShizukuEngine.applyBalanced()
-                OptProfile.BATTERY     -> ShizukuEngine.applyBattery()
+                OptProfile.BALANCED -> ShizukuEngine.applyBalanced()
+                OptProfile.BATTERY -> ShizukuEngine.applyBattery()
             } else emptyList()
 
             val total = (rootCmds.size + shzCmds.size).coerceAtLeast(1)
@@ -318,7 +322,9 @@ class MainViewModel : ViewModel() {
         if (isOptimizing) return
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                isOptimizing = true; progress = 0f; statusMsg = "Restoring factory defaults..."
+                isOptimizing = true
+                progress = 0f
+                statusMsg = "Restoring factory defaults..."
             }
 
             val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
@@ -341,8 +347,12 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val r = RootEngine.setGovernor(gov)
             withContext(Dispatchers.Main) {
-                if (r.success) { currentGov = gov; statusMsg = "CPU Governor -> $gov" }
-                else statusMsg = "Failed to set $gov"
+                if (r.success) {
+                    currentGov = gov
+                    statusMsg = "CPU Governor -> $gov"
+                } else {
+                    statusMsg = "Failed to set $gov"
+                }
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }

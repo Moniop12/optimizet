@@ -12,12 +12,6 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "monai_user_prefs")
 
-/**
- * Single source of truth for all state that must survive process death, an
- * app-kill by the system, or a full device reboot. Both [com.monai.optimizer.ui.MainViewModel]
- * and [com.monai.optimizer.service.MonAiService] read/write through this repository so
- * the UI and the background service are always in sync (two-way) via the same Flow.
- */
 data class UserPreferencesState(
     val activeProfile: OptProfile?,
     val isChargeLimitEnabled: Boolean,
@@ -25,6 +19,7 @@ data class UserPreferencesState(
     val chargeSpeedMa: Int,
     val isLiveServiceRunning: Boolean,
     val isThermalProtectEnabled: Boolean,
+    val aiOptimizerEnabled: Boolean,
 )
 
 class UserPreferencesRepository(context: Context) {
@@ -38,6 +33,7 @@ class UserPreferencesRepository(context: Context) {
         val CHARGE_SPEED_MA = intPreferencesKey("charge_speed_ma")
         val LIVE_SERVICE_RUNNING = booleanPreferencesKey("is_live_service_running")
         val THERMAL_PROTECT_ENABLED = booleanPreferencesKey("is_thermal_protect_enabled")
+        val AI_OPTIMIZER_ENABLED = booleanPreferencesKey("ai_optimizer_enabled")
     }
 
     companion object {
@@ -57,6 +53,7 @@ class UserPreferencesRepository(context: Context) {
             chargeSpeedMa = prefs[Keys.CHARGE_SPEED_MA] ?: DEFAULT_CHARGE_SPEED_MA,
             isLiveServiceRunning = prefs[Keys.LIVE_SERVICE_RUNNING] ?: false,
             isThermalProtectEnabled = prefs[Keys.THERMAL_PROTECT_ENABLED] ?: false,
+            aiOptimizerEnabled = prefs[Keys.AI_OPTIMIZER_ENABLED] ?: false,
         )
     }
 
@@ -86,5 +83,9 @@ class UserPreferencesRepository(context: Context) {
 
     suspend fun setThermalProtectEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[Keys.THERMAL_PROTECT_ENABLED] = enabled }
+    }
+
+    suspend fun setAiOptimizerEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[Keys.AI_OPTIMIZER_ENABLED] = enabled }
     }
 }
