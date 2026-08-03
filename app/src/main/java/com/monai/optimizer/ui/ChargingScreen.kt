@@ -82,7 +82,9 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         "Stop charging automatically at a set level",
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 50.dp, top = (-4).dp)
+                        modifier = Modifier
+                            .padding(start = 50.dp)
+                            .offset(y = (-4).dp)
                     )
 
                     if (vm.hasRoot) {
