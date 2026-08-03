@@ -186,6 +186,9 @@ class MainViewModel : ViewModel() {
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setAiOptimizerEnabled(aiOptimizerEnabled)
+            if (hasRoot) {
+                RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
+            }
         }
     }
 
@@ -225,6 +228,7 @@ class MainViewModel : ViewModel() {
                 val r = ChargingEngine.setChargeCurrentMaxMa(clamped)
                 withContext(Dispatchers.Main) {
                     statusMsg = if (r.success) "Charging speed set to $clamped mA" else "Kernel does not support current limiting"
+                    log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
                 }
             }
         }

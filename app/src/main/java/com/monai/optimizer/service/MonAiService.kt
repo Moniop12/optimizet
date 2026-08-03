@@ -65,19 +65,16 @@ class MonAiService : Service() {
         var isChargePausedByLimit = false
         var isThermalThrottled = false
 
-        // AI Optimizer mode
         var aiOptimizerEnabled = false
 
+        // Fail-Safe: Kembalikan fungsi cas ke normal di level hardware/kernel
         fun restoreChargingFailSafe() {
             try {
                 if (isChargePausedByLimit || isThermalThrottled) {
                     ChargingEngine.setChargingEnabled(true)
-                    if (isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
-                    }
+                    ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
                 }
             } catch (_: Throwable) {
-                // ignore
             } finally {
                 isChargePausedByLimit = false
                 isThermalThrottled = false
@@ -117,6 +114,7 @@ class MonAiService : Service() {
                 chargeLimitPct = state.chargeLimitPct
                 chargeSpeedMa = state.chargeSpeedMa
                 isThermalProtectEnabled = state.isThermalProtectEnabled
+                aiOptimizerEnabled = state.aiOptimizerEnabled
             }
         }
     }
@@ -180,7 +178,7 @@ class MonAiService : Service() {
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                // Smart Charge Limit
+                // 1. Smart Charge Limit
                 if (hasRoot && isChargeLimitEnabled) {
                     if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
                         ChargingEngine.setChargingEnabled(false)
@@ -191,45 +189,24 @@ class MonAiService : Service() {
                     }
                 }
 
-                // Thermal Protection Hysteresis
+                // 2. Thermal Protection Hysteresis (Auto-Restore)
                 if (hasRoot && isThermalProtectEnabled && bat.isCharging) {
                     if (bat.tempC > 42.0 && !isThermalThrottled) {
                         ChargingEngine.setChargeCurrentMaxMa(500)
                         isThermalThrottled = true
                     } else if (bat.tempC < 38.0 && isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa) // Kembali ke nilai setelan user
                         isThermalThrottled = false
                     }
                 }
 
-                // ============================================================
-                // AI OPTIMIZER ENGINE (baru)
-                // ============================================================
+                // 3. Real Auto Optimizer (Smooth Rendering & Memory Pressure Adjustment)
                 if (hasRoot && aiOptimizerEnabled) {
-                    // 1. Dynamic thermal throttling
-                    RootEngine.applyDynamicThermalProfile(bat.tempC)
-
-                    // 2. Adaptive memory tuning
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     val memInfo = ActivityManager.MemoryInfo()
                     am.getMemoryInfo(memInfo)
                     val availRam = memInfo.availMem / (1024L * 1024L)
                     RootEngine.adaptiveMemoryTune(availRam)
-
-                    // 3. App-aware boost (game detection)
-                    val isGame = focusInfo.pkgName?.let { pkg ->
-                        val gameKeywords = listOf("game", "gameloop", "tencent", "miHoYo", "com.activision", "com.ea", "com.epicgames")
-                        gameKeywords.any { pkg.contains(it, ignoreCase = true) } ||
-                        focusInfo.appLabel.contains("Game", ignoreCase = true)
-                    } ?: false
-
-                    if (isGame && bat.tempC < 38.0) {
-                        // Boost: set performance governor on big cluster (asumsi cpu4-7)
-                        RootEngine.su("echo performance > /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor")
-                    } else if (!isGame && bat.tempC > 40.0) {
-                        // Kembali ke schedutil jika sebelumnya performance
-                        RootEngine.su("echo schedutil > /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor")
-                    }
                 }
 
                 val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
@@ -259,8 +236,6 @@ class MonAiService : Service() {
             }
         }
     }
-
-    // ── Focused app detection ──────────────────────────────────────────
 
     private fun getFocusedAppInfo(ctx: Context, hasRoot: Boolean): AppFocusInfo {
         getFocusedAppViaUsageStats(ctx)?.let {
@@ -351,8 +326,6 @@ class MonAiService : Service() {
         } catch (_: Exception) { 0L }
     }
 
-    // ── Battery Info ──────────────────────────────────────────────────
-
     private fun getBatteryPowerInfo(ctx: Context): BatteryPowerInfo {
         return try {
             val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
@@ -398,8 +371,6 @@ class MonAiService : Service() {
         }
         valRead
     } catch (_: Exception) { 0 }
-
-    // ── Notification ──────────────────────────────────────────────────
 
     private fun buildNotification(
         focus: AppFocusInfo,

@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +47,7 @@ fun HomeScreen(vm: MainViewModel) {
             if (isGranted) {
                 vm.toggleLiveService(ctx)
             } else {
-                Toast.makeText(ctx, "Notification permission is required to enable this feature", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "Notification permission is required to enable live service", Toast.LENGTH_SHORT).show()
             }
         }
     )
@@ -118,9 +116,7 @@ fun HomeScreen(vm: MainViewModel) {
 
         DeviceOverviewCard(vm)
 
-        // ============================================================
-        // AUTO OPTIMIZER CARD (replaces AI Recommendation)
-        // ============================================================
+        // REAL AUTO OPTIMIZER CARD (Smooth Scroll Rendering & Adaptive Memory)
         AutoOptimizerCard(vm)
 
         SectionLabel("MANUAL PROFILES")
@@ -131,15 +127,12 @@ fun HomeScreen(vm: MainViewModel) {
     }
 }
 
-// ============================================================
-// AUTO OPTIMIZER CARD with switch and status
-// ============================================================
 @Composable
 fun AutoOptimizerCard(vm: MainViewModel) {
     val statusText = if (vm.aiOptimizerEnabled) {
-        if (vm.hasRoot) "Active: Dynamic thermal, memory & app-aware tuning" else "Requires root access"
+        if (vm.hasRoot) "Active: SurfaceFlinger Smooth Scroll & Adaptive Memory" else "Requires root access"
     } else {
-        "Disabled - tap switch to enable auto optimization"
+        "Disabled - toggle to enable auto rendering & memory optimization"
     }
 
     AppCard(accent = CyanGlow, containerColor = CyanGlow.copy(alpha = 0.08f)) {
@@ -152,7 +145,7 @@ fun AutoOptimizerCard(vm: MainViewModel) {
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Text(
-                        "Auto Optimizer",
+                        "Auto Smooth Rendering",
                         color = TextPrimary,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
@@ -172,9 +165,9 @@ fun AutoOptimizerCard(vm: MainViewModel) {
                 if (vm.aiOptimizerEnabled && vm.hasRoot) {
                     Spacer(Modifier.height(4.dp))
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        StatusPill("Thermal", true, OrangeGlow)
-                        StatusPill("Memory", true, EmeraldGlow)
-                        StatusPill("App-Aware", true, PurpleGlow)
+                        StatusPill("Smooth Scroll", true, OrangeGlow)
+                        StatusPill("HWUI Skia", true, EmeraldGlow)
+                        StatusPill("Adaptive RAM", true, PurpleGlow)
                     }
                 }
             }
@@ -271,7 +264,7 @@ fun ProfileSelectorRow(vm: MainViewModel) {
                                 color = if (active) accent else GlassBorder,
                                 shape = RoundedCornerShape(12.dp)
                             )
-                            .clickable(enabled = !vm.isOptimizing && !vm.aiOptimizerEnabled) { vm.applyProfile(profile) }
+                            .clickable(enabled = !vm.isOptimizing) { vm.applyProfile(profile) }
                             .padding(vertical = 12.dp, horizontal = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -304,15 +297,12 @@ fun ProfileSelectorRow(vm: MainViewModel) {
                 }
             }
 
-            val activeDesc = if (vm.aiOptimizerEnabled) {
-                "Auto Optimizer is active - manual profiles are disabled"
-            } else {
-                profiles.firstOrNull { it.first == vm.activeProfile }?.second?.second
-                    ?: "Select a profile to tune CPU governor, memory and doze behavior."
-            }
+            val activeDesc = profiles.firstOrNull { it.first == vm.activeProfile }?.second?.second
+                ?: "Select a profile to tune CPU governor, memory and doze behavior."
+
             Text(
                 activeDesc,
-                color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
+                color = TextTertiary,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 2.dp)
             )

@@ -2,9 +2,9 @@ package com.monai.optimizer.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryChargingFull
@@ -33,7 +33,6 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
             .fillMaxSize()
             .background(DarkBg)
     ) {
-        // Top bar
         Row(
             Modifier
                 .fillMaxWidth()
@@ -45,7 +44,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
             Column {
                 Text("Smart Charging Control", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
-                Text("Battery limit & current tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("Hardware limits & current tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -60,12 +59,9 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 InfoBanner("Hardware charging control requires Root access", RedErr)
             }
 
-            // Enable / disable charge limit
+            // Charge Limit
             AppCard(accent = EmeraldGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(12.dp)) {
-                    // Title + switch share a single line so the switch always centers against
-                    // ONE line of text, never the whole 2-line description block (fixes the
-                    // switch visually "sinking" below-center on long descriptions).
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconBadge(Icons.Filled.BatteryChargingFull, EmeraldGlow)
@@ -82,18 +78,11 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         "Stop charging automatically at a set level",
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .padding(start = 50.dp)
-                            .offset(y = (-4).dp)
+                        modifier = Modifier.padding(start = 50.dp).offset(y = (-4).dp)
                     )
 
                     if (vm.hasRoot) {
                         HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
-
-                        // Local drag state — the slider tracks this instantly (60fps, no lag),
-                        // and only commits to the ViewModel/DataStore once the finger lifts.
-                        // Previously this called vm.setChargeLimit() on every pixel of drag,
-                        // which triggered a coroutine + DataStore write per frame -> stutter.
                         var dragPct by remember(vm.chargeLimitPct) { mutableFloatStateOf(vm.chargeLimitPct) }
 
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -129,7 +118,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Auto-throttle current above 42°C, restore below 38°C",
+                        "Auto-throttle current to 500mA above 42°C, restore below 38°C",
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(start = 50.dp)
@@ -137,7 +126,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Charging speed — free slider, up to fast-charging territory
+            // Charging Speed
             AppCard(accent = CyanGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -172,13 +161,13 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             Text("${UserPreferencesRepository.MAX_CHARGE_SPEED_MA} mA · Max", color = TextTertiary, fontSize = 10.sp)
                         }
 
-                        // Quick presets - convenience shortcuts, still fully overridable by the slider above.
+                        // Presets
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(6.dp)) {
-                            listOf(1000, 1500, 2000, 3000, 5000).forEach { mA ->
+                            listOf(500, 1000, 1500, 2000, 3000, 5000).forEach { mA ->
                                 FilterChip(
                                     selected = vm.chargeSpeedMa == mA,
                                     onClick = { sliderPos = mA.toFloat(); vm.setChargeSpeed(mA) },
-                                    label = { Text("$mA", fontSize = 11.sp) },
+                                    label = { Text("$mA", fontSize = 10.sp) },
                                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CyanGlow.copy(alpha = 0.18f)),
                                     modifier = Modifier.weight(1f)
                                 )
@@ -188,7 +177,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Live status
+            // Status Card
             AppCard {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

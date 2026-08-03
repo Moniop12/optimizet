@@ -2,12 +2,11 @@ package com.monai.optimizer.optimizer
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
-import java.io.File
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
@@ -55,7 +54,7 @@ object RootEngine {
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
 
-    // ── CPU Governor Controls ─────────────────────────────────────────
+    // ── CPU Governor Controls via Root Shell ──────────────────────────
 
     fun getGovernors(): List<String> {
         val r = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors 2>/dev/null")
@@ -68,7 +67,7 @@ object RootEngine {
     fun setGovernor(gov: String): CmdResult {
         val available = getGovernors()
         if (available.isNotEmpty() && !available.contains(gov)) {
-            return CmdResult(false, "Governor $gov is not supported by the kernel", "setGov $gov")
+            return CmdResult(false, "Governor $gov is not supported by kernel", "setGov $gov")
         }
         val cmd = "chmod 666 /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null; " +
                   "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
@@ -80,7 +79,7 @@ object RootEngine {
         return r.output.trim()
     }
 
-    // ── Original State Backup ────────────────────────────────────────
+    // ── Backup Nilai Asli Bawaan Pabrik ──────────────────────────────
 
     suspend fun backupOriginalStateIfNeeded() {
         val ctx = appContext ?: return
@@ -103,7 +102,7 @@ object RootEngine {
             prefs[BackupKeys.VFS_CACHE_PRESSURE] = vfs
             prefs[BackupKeys.DONE] = true
         }
-        Log.d(T, "Original kernel state backed up: gov=$gov swap=$swap dirty=$dirty dirtyBg=$dirtyBg vfs=$vfs")
+        Log.d(T, "Backed up original state: gov=$gov swap=$swap")
     }
 
     suspend fun getBackupSnapshot(): KernelBackupSnapshot? {
@@ -115,8 +114,32 @@ object RootEngine {
             swappiness = prefs[BackupKeys.SWAPPINESS] ?: "60",
             dirtyRatio = prefs[BackupKeys.DIRTY_RATIO] ?: "20",
             dirtyBackgroundRatio = prefs[BackupKeys.DIRTY_BG_RATIO] ?: "10",
-            vfsCachePressure = prefs[BackupKeys.VFS_CACHE_PRESSURE] ?: "100",
+            vfsCachePressure = prefs[BackupKeys.VFS_CACHE_PRESSURE] ?: "100"
         )
+    }
+
+    // ── Real Non-Gimmick Smooth Scroll & OS Rendering Tweaks ─────────
+
+    fun applySmoothRenderingTweaks(enable: Boolean): CmdResult {
+        return if (enable) {
+            su(
+                "setprop debug.sf.latch_unsignaled 1; " +
+                "setprop renderthread.skia.reduce_ops_task_splitting true; " +
+                "setprop view.scroll_friction 0.005; " +
+                "settings put global window_animation_scale 0.8; " +
+                "settings put global transition_animation_scale 0.8; " +
+                "settings put global animator_duration_scale 0.8"
+            )
+        } else {
+            su(
+                "setprop debug.sf.latch_unsignaled 0; " +
+                "setprop renderthread.skia.reduce_ops_task_splitting false; " +
+                "setprop view.scroll_friction 0.015; " +
+                "settings put global window_animation_scale 1.0; " +
+                "settings put global transition_animation_scale 1.0; " +
+                "settings put global animator_duration_scale 1.0"
+            )
+        }
     }
 
     // ── Profiles ──────────────────────────────────────────────────────
@@ -126,6 +149,7 @@ object RootEngine {
         val targetGov = if (avail.contains("performance")) "performance" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
+            applySmoothRenderingTweaks(true),
             su("sysctl -w vm.swappiness=10"),
             su("sysctl -w vm.dirty_ratio=30"),
             su("sysctl -w vm.vfs_cache_pressure=50")
@@ -137,6 +161,7 @@ object RootEngine {
         val targetGov = if (avail.contains("schedutil")) "schedutil" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
+            applySmoothRenderingTweaks(true),
             su("sysctl -w vm.swappiness=30"),
             su("sysctl -w vm.dirty_ratio=20"),
             su("sysctl -w vm.vfs_cache_pressure=80")
@@ -148,13 +173,14 @@ object RootEngine {
         val targetGov = if (avail.contains("powersave")) "powersave" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
+            applySmoothRenderingTweaks(false),
             su("sysctl -w vm.swappiness=60"),
             su("sysctl -w vm.dirty_ratio=10"),
             su("dumpsys deviceidle force-idle 2>/dev/null || true")
         )
     }
 
-    // ── Reset to Defaults ──────────────────────────────────────────────
+    // ── Reset to Defaults Berdasarkan Backup Asli ──────────────────
 
     suspend fun resetToDefaults(): List<CmdResult> {
         val snap = getBackupSnapshot()
@@ -172,167 +198,48 @@ object RootEngine {
 
         return listOf(
             setGovernor(defaultGov),
+            applySmoothRenderingTweaks(false),
             su("sysctl -w vm.swappiness=$swappiness"),
             su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),
             su("sysctl -w vm.vfs_cache_pressure=$vfsCachePressure"),
-            su("settings delete global window_animation_scale 2>/dev/null || true"),
-            su("settings delete global transition_animation_scale 2>/dev/null || true"),
-            su("settings delete global animator_duration_scale 2>/dev/null || true"),
             su("settings delete global background_process_limit 2>/dev/null || true"),
             su("dumpsys deviceidle disable 2>/dev/null || true")
         )
     }
 
-    // ── Enhanced Info Helpers ──────────────────────────────────────────
+    // ── Info Helpers via Shell Root (SELinux Bypass) ─────────────────
 
-    fun getMaxFreqForCpu(cpu: Int): Int {
-        return try {
-            val path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq"
-            File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()?.div(1000L)?.toInt() ?: 0
-        } catch (_: Exception) { 0 }
+    fun getCpuFreqInfo(): String {
+        val cur = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
+        val max = su("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
+        return if (max > 0) "${cur}/${max}MHz" else "N/A"
     }
 
-    fun getCpuClusters(): List<Int> {
-        val clusterMap = mutableMapOf<Int, MutableList<Int>>()
-        for (i in 0 until Runtime.getRuntime().availableProcessors()) {
-            val maxFreq = getMaxFreqForCpu(i)
-            if (maxFreq == 0) continue
-            var found = false
-            for ((clusterId, list) in clusterMap) {
-                val existingMax = list.maxOrNull() ?: 0
-                if (kotlin.math.abs(existingMax - maxFreq) < 100) {
-                    list.add(maxFreq)
-                    found = true
-                    break
-                }
-            }
-            if (!found) {
-                clusterMap[clusterMap.size] = mutableListOf(maxFreq)
-            }
+    fun getCpuTemp(): String {
+        val cmd = "for z in /sys/class/thermal/thermal_zone*/temp; do [ -f \$z ] && cat \$z 2>/dev/null && break; done"
+        val r = su(cmd)
+        if (r.success && r.output.isNotBlank()) {
+            val raw = r.output.lines().firstOrNull()?.trim()?.toDoubleOrNull() ?: return "N/A"
+            val c = if (raw > 1000.0) raw / 1000.0 else raw
+            if (c in 10.0..95.0) return "%.1f°C".format(c)
         }
-        return clusterMap.keys.sorted()
+        return "N/A"
     }
-
-    private fun getClusterMaxFreqs(): Map<Int, Int> {
-        val clusterMap = mutableMapOf<Int, MutableList<Int>>()
-        for (i in 0 until Runtime.getRuntime().availableProcessors()) {
-            val maxFreq = getMaxFreqForCpu(i)
-            if (maxFreq == 0) continue
-            var found = false
-            for ((clusterId, list) in clusterMap) {
-                val existingMax = list.maxOrNull() ?: 0
-                if (kotlin.math.abs(existingMax - maxFreq) < 100) {
-                    list.add(maxFreq)
-                    found = true
-                    break
-                }
-            }
-            if (!found) {
-                clusterMap[clusterMap.size] = mutableListOf(maxFreq)
-            }
-        }
-        return clusterMap.mapValues { it.value.maxOrNull() ?: 0 }
-    }
-
-    fun getCurrentMaxFreqInfo(): String {
-        val curFreqs = (0 until Runtime.getRuntime().availableProcessors())
-            .map { "/sys/devices/system/cpu/cpu$it/cpufreq/scaling_cur_freq" }
-            .mapNotNull { path ->
-                File(path).takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
-            }
-            .filter { it > 0 }
-        val curMax = curFreqs.maxOrNull()?.div(1000L) ?: 0L
-        val maxFreq = getClusterMaxFreqs().values.maxOrNull() ?: 0
-        return if (maxFreq > 0) "${curMax}/${maxFreq}MHz" else "N/A"
-    }
-
-    // Override existing getCpuFreqInfo with new implementation
-    fun getCpuFreqInfo(): String = getCurrentMaxFreqInfo()
-
-    // ── Dynamic thermal throttling ────────────────────────────────────
-
-    fun applyDynamicThermalProfile(tempC: Double): List<CmdResult> {
-        val clusterMax = getClusterMaxFreqs()
-        if (clusterMax.isEmpty()) return emptyList()
-
-        val cmds = mutableListOf<String>()
-        var littleRatio = 1.0
-        var bigRatio = 1.0
-
-        when {
-            tempC > 45.0 -> { littleRatio = 0.4; bigRatio = 0.3 }
-            tempC > 42.0 -> { littleRatio = 0.7; bigRatio = 0.5 }
-            tempC > 39.0 -> { littleRatio = 0.9; bigRatio = 0.8 }
-            else -> { littleRatio = 1.0; bigRatio = 1.0 }
-        }
-
-        val sortedClusters = clusterMax.entries.sortedBy { it.value }
-        for ((idx, entry) in sortedClusters.withIndex()) {
-            val baseFreq = entry.value
-            val ratio = if (idx == 0) littleRatio else bigRatio
-            val targetFreq = (baseFreq * ratio).toInt()
-            for (cpu in 0 until Runtime.getRuntime().availableProcessors()) {
-                val cpuMax = getMaxFreqForCpu(cpu)
-                if (cpuMax == 0) continue
-                if (kotlin.math.abs(cpuMax - baseFreq) < 100) {
-                    val path = "/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_max_freq"
-                    cmds.add("[ -f $path ] && echo ${targetFreq * 1000} > $path")
-                }
-            }
-        }
-
-        return if (cmds.isNotEmpty()) listOf(su(cmds.joinToString("; "))) else emptyList()
-    }
-
-    fun adaptiveMemoryTune(availRamMb: Long): CmdResult {
-        val swappiness = when {
-            availRamMb < 500 -> 80
-            availRamMb < 1000 -> 50
-            else -> 20
-        }
-        return su("sysctl -w vm.swappiness=$swappiness")
-    }
-
-    // ── Auto-detect thermal zone ─────────────────────────────────────
-
-    fun findThermalZone(): String {
-        val base = "/sys/class/thermal"
-        val dir = File(base)
-        if (dir.exists()) {
-            dir.listFiles()?.forEach { zoneDir ->
-                val typeFile = File(zoneDir, "type")
-                if (typeFile.exists()) {
-                    val type = typeFile.readText().trim().lowercase()
-                    if (type.contains("cpu-thermal") || type.contains("tsens") || type.contains("bcl") || type == "cpu-0-usr") {
-                        return File(zoneDir, "temp").absolutePath
-                    }
-                }
-            }
-            val fallback = File(base, "thermal_zone0/temp")
-            if (fallback.exists()) return fallback.absolutePath
-        }
-        return "/sys/class/thermal/thermal_zone0/temp"
-    }
-
-    fun getCpuTempDynamic(): String {
-        val zone = findThermalZone()
-        return try {
-            val raw = File(zone).readText().trim().toDoubleOrNull() ?: 0.0
-            val celsius = if (raw > 1000) raw / 1000.0 else raw
-            if (celsius in 10.0..95.0) String.format("%.1f°C", celsius) else "N/A"
-        } catch (_: Exception) { "N/A" }
-    }
-
-    // Override existing getCpuTemp with dynamic version
-    fun getCpuTemp(): String = getCpuTempDynamic()
-
-    // ── Other info helpers ────────────────────────────────────────────
 
     fun getZramInfo(): String {
         val used = su("cat /sys/block/zram0/mem_used_total 2>/dev/null").output.trim().toLongOrNull()?.div(1048576L) ?: 0L
         val total = su("cat /sys/block/zram0/disksize 2>/dev/null").output.trim().toLongOrNull()?.div(1048576L) ?: 0L
         return if (total > 0L) "${used}/${total}MB" else "N/A"
+    }
+
+    fun adaptiveMemoryTune(availRamMb: Long): CmdResult {
+        val swappiness = when {
+            availRamMb < 600 -> 70
+            availRamMb < 1200 -> 40
+            else -> 20
+        }
+        return su("sysctl -w vm.swappiness=$swappiness")
     }
 
     fun killBgApps(): CmdResult = su("am kill-all 2>/dev/null; cmd activity kill-all 2>/dev/null; sync; echo 3 > /proc/sys/vm/drop_caches; echo done")
