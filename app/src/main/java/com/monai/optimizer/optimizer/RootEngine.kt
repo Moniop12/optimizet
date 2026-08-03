@@ -118,28 +118,31 @@ object RootEngine {
         )
     }
 
-    // ── Real Non-Gimmick Smooth Scroll & OS Rendering Tweaks ─────────
+    // ── Real Smooth Scroll & Rendering Tweaks ─────────────────────────
 
     fun applySmoothRenderingTweaks(enable: Boolean): CmdResult {
         return if (enable) {
             su(
                 "setprop debug.sf.latch_unsignaled 1; " +
                 "setprop renderthread.skia.reduce_ops_task_splitting true; " +
-                "setprop view.scroll_friction 0.005; " +
-                "settings put global window_animation_scale 0.8; " +
-                "settings put global transition_animation_scale 0.8; " +
-                "settings put global animator_duration_scale 0.8"
+                "setprop view.scroll_friction 0.005"
             )
         } else {
             su(
                 "setprop debug.sf.latch_unsignaled 0; " +
                 "setprop renderthread.skia.reduce_ops_task_splitting false; " +
-                "setprop view.scroll_friction 0.015; " +
-                "settings put global window_animation_scale 1.0; " +
-                "settings put global transition_animation_scale 1.0; " +
-                "settings put global animator_duration_scale 1.0"
+                "setprop view.scroll_friction 0.015"
             )
         }
+    }
+
+    fun applyDisableAnimations(disable: Boolean): CmdResult {
+        val valScale = if (disable) "0" else "1.0"
+        return su(
+            "settings put global window_animation_scale $valScale; " +
+            "settings put global transition_animation_scale $valScale; " +
+            "settings put global animator_duration_scale $valScale"
+        )
     }
 
     // ── Profiles ──────────────────────────────────────────────────────
@@ -199,6 +202,7 @@ object RootEngine {
         return listOf(
             setGovernor(defaultGov),
             applySmoothRenderingTweaks(false),
+            applyDisableAnimations(false),
             su("sysctl -w vm.swappiness=$swappiness"),
             su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),

@@ -116,8 +116,8 @@ fun HomeScreen(vm: MainViewModel) {
 
         DeviceOverviewCard(vm)
 
-        // REAL AUTO OPTIMIZER CARD (Smooth Scroll Rendering & Adaptive Memory)
-        AutoOptimizerCard(vm)
+        // REAL SYSTEM UI & RENDERING TWEAKS CARD
+        SystemTweaksCard(vm)
 
         SectionLabel("MANUAL PROFILES")
         ProfileSelectorRow(vm)
@@ -128,48 +128,54 @@ fun HomeScreen(vm: MainViewModel) {
 }
 
 @Composable
-fun AutoOptimizerCard(vm: MainViewModel) {
-    val statusText = if (vm.aiOptimizerEnabled) {
-        if (vm.hasRoot) "Active: SurfaceFlinger Smooth Scroll & Adaptive Memory" else "Requires root access"
-    } else {
-        "Disabled - toggle to enable auto rendering & memory optimization"
-    }
-
+fun SystemTweaksCard(vm: MainViewModel) {
     AppCard(accent = CyanGlow, containerColor = CyanGlow.copy(alpha = 0.08f)) {
-        Row(
-            Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
-            Column(Modifier.weight(1f)) {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    Text(
-                        "Auto Smooth Rendering",
-                        color = TextPrimary,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Switch(
-                        checked = vm.aiOptimizerEnabled,
-                        onCheckedChange = { vm.toggleAiOptimizer() },
-                        enabled = vm.hasRoot,
-                        colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
-                    )
+        Column(Modifier.padding(14.dp), Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
+                    Text("System UI & Rendering Tweaks", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 }
-                Text(
-                    statusText,
-                    color = if (vm.aiOptimizerEnabled) CyanGlow else TextSecondary,
-                    style = MaterialTheme.typography.bodySmall
+            }
+
+            HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+
+            // Tweak 1: Smooth Scroll Engine
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Smooth Scroll Engine", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("SurfaceFlinger latch & Skia pipeline", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(
+                    checked = vm.aiOptimizerEnabled,
+                    onCheckedChange = { vm.toggleAiOptimizer() },
+                    enabled = vm.hasRoot,
+                    colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
                 )
-                if (vm.aiOptimizerEnabled && vm.hasRoot) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        StatusPill("Smooth Scroll", true, OrangeGlow)
-                        StatusPill("HWUI Skia", true, EmeraldGlow)
-                        StatusPill("Adaptive RAM", true, PurpleGlow)
-                    }
+            }
+
+            // Tweak 2: Disable Animations (Instant Speed)
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Disable UI Animations", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("0x Animation Scale for instant response", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
+                Switch(
+                    checked = vm.disableAnimationsEnabled,
+                    onCheckedChange = { vm.toggleDisableAnimations() },
+                    enabled = vm.hasRoot || vm.hasShizuku,
+                    colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
+                )
+            }
+
+            // Indicator Badges
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "• Smooth Scroll: ${if (vm.aiOptimizerEnabled) "ON" else "OFF"}   • Anim 0x: ${if (vm.disableAnimationsEnabled) "ON" else "OFF"}",
+                    color = CyanGlow,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }
@@ -243,7 +249,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
 @Composable
 fun ProfileSelectorRow(vm: MainViewModel) {
     val profiles = listOf(
-        Triple(OptProfile.PERFORMANCE, "Performance" to "Max CPU frequency · Low latency I/O", Icons.Filled.FlashOn to OrangeGlow),
+        Triple(OptProfile.PERFORMANCE, "Performance" to "Max CPU frequency · Low latency I/O", Icons.Filled.FlashOn to EmeraldGlow),
         Triple(OptProfile.BALANCED, "Balanced" to "Smart schedutil · Balanced efficiency", Icons.Filled.Tune to CyanGlow),
         Triple(OptProfile.BATTERY, "Battery Saver" to "Powersave CPU · Deep doze engine", Icons.Filled.BatteryFull to EmeraldGlow),
     )

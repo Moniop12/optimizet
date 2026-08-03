@@ -2,7 +2,6 @@ package com.monai.optimizer.optimizer
 
 object ChargingEngine {
 
-    // Node pembatas arus cas (uA / mA)
     private val CURRENT_NODES = listOf(
         "/sys/class/power_supply/battery/constant_charge_current_max",
         "/sys/class/power_supply/battery/current_max",
@@ -11,14 +10,12 @@ object ChargingEngine {
         "/sys/class/power_supply/battery/step_charging_enabled"
     )
 
-    // Node sakelar cas (1/0)
     private val ENABLE_NODES = listOf(
         "/sys/class/power_supply/battery/charging_enabled",
         "/sys/class/power_supply/battery/battery_charging_enabled",
         "/sys/class/power_supply/battery/store_mode"
     )
 
-    // Node suspend masukan (0/1)
     private val SUSPEND_NODES = listOf(
         "/sys/class/power_supply/battery/input_suspend"
     )

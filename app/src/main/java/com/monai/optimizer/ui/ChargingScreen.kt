@@ -2,8 +2,9 @@ package com.monai.optimizer.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -12,11 +13,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +56,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 InfoBanner("Hardware charging control requires Root access", RedErr)
             }
 
-            // Charge Limit
+            // Charge Limit Card
             AppCard(accent = EmeraldGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -102,23 +99,23 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Thermal protection
-            AppCard(accent = OrangeGlow) {
+            // Thermal Protection Card
+            AppCard(accent = EmeraldGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(4.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconBadge(Icons.Filled.Thermostat, OrangeGlow)
+                            IconBadge(Icons.Filled.Thermostat, EmeraldGlow)
                             Text("Thermal Protection", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
                         Switch(
                             checked = vm.isThermalProtectEnabled,
                             onCheckedChange = { vm.setThermalProtect(it) },
                             enabled = vm.hasRoot,
-                            colors = SwitchDefaults.colors(checkedTrackColor = OrangeGlow)
+                            colors = SwitchDefaults.colors(checkedTrackColor = EmeraldGlow)
                         )
                     }
                     Text(
-                        "Auto-throttle current to 500mA above 42°C, restore below 38°C",
+                        "Throttle to 500mA above 42°C, restore below 38°C",
                         color = TextSecondary,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(start = 50.dp)
@@ -126,7 +123,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Charging Speed
+            // Charging Speed Card
             AppCard(accent = CyanGlow) {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -145,7 +142,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Text("Current Limit", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                             Text(
-                                "${sliderPos.toInt()} mA" + if (sliderPos >= 3000f) " · Fast Charging" else "",
+                                "${sliderPos.toInt()} mA" + if (sliderPos >= 3000f) " · Fast" else "",
                                 color = CyanGlow, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -157,19 +154,26 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                             colors = SliderDefaults.colors(thumbColor = CyanGlow, activeTrackColor = CyanGlow)
                         )
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("${UserPreferencesRepository.MIN_CHARGE_SPEED_MA} mA · Slow", color = TextTertiary, fontSize = 10.sp)
-                            Text("${UserPreferencesRepository.MAX_CHARGE_SPEED_MA} mA · Max", color = TextTertiary, fontSize = 10.sp)
+                            Text("${UserPreferencesRepository.MIN_CHARGE_SPEED_MA} mA", color = TextTertiary, fontSize = 10.sp)
+                            Text("${UserPreferencesRepository.MAX_CHARGE_SPEED_MA} mA", color = TextTertiary, fontSize = 10.sp)
                         }
 
-                        // Presets
-                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(6.dp)) {
-                            listOf(500, 1000, 1500, 2000, 3000, 5000).forEach { mA ->
+                        // Presets menggunakan LazyRow agar tidak terlipat
+                        val presets = listOf(
+                            500 to "0.5A",
+                            1000 to "1.0A",
+                            1500 to "1.5A",
+                            2000 to "2.0A",
+                            3000 to "3.0A",
+                            5000 to "Max"
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(presets) { (mA, label) ->
                                 FilterChip(
                                     selected = vm.chargeSpeedMa == mA,
                                     onClick = { sliderPos = mA.toFloat(); vm.setChargeSpeed(mA) },
-                                    label = { Text("$mA", fontSize = 10.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CyanGlow.copy(alpha = 0.18f)),
-                                    modifier = Modifier.weight(1f)
+                                    label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = CyanGlow.copy(alpha = 0.18f))
                                 )
                             }
                         }
@@ -177,11 +181,11 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Status Card
+            // Live Status Card
             AppCard {
                 Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(Icons.Filled.Speed, PurpleGlow)
+                        IconBadge(Icons.Filled.Speed, CyanGlow)
                         Text("Live Status", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {

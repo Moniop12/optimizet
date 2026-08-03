@@ -69,6 +69,20 @@ class MainViewModel : ViewModel() {
 
     var aiOptimizerEnabled by mutableStateOf(false)
         private set
+    var disableAnimationsEnabled by mutableStateOf(false)
+        private set
+
+    // Notification Modular Settings States
+    var showNotifRam by mutableStateOf(true)
+        private set
+    var showNotifCpu by mutableStateOf(true)
+        private set
+    var showNotifPower by mutableStateOf(true)
+        private set
+    var showNotifProfiles by mutableStateOf(true)
+        private set
+    var showNotifQuickClean by mutableStateOf(false)
+        private set
 
     val runningTools = mutableStateMapOf<String, Boolean>()
 
@@ -134,6 +148,14 @@ class MainViewModel : ViewModel() {
                 isLiveServiceRunning = state.isLiveServiceRunning
                 isThermalProtectEnabled = state.isThermalProtectEnabled
                 aiOptimizerEnabled = state.aiOptimizerEnabled
+                disableAnimationsEnabled = state.disableAnimationsEnabled
+
+                showNotifRam = state.showNotifRam
+                showNotifCpu = state.showNotifCpu
+                showNotifPower = state.showNotifPower
+                showNotifProfiles = state.showNotifProfiles
+                showNotifQuickClean = state.showNotifQuickClean
+
                 MonAiService.currentActiveProfile = state.activeProfile
                 MonAiService.aiOptimizerEnabled = state.aiOptimizerEnabled
             }
@@ -190,6 +212,39 @@ class MainViewModel : ViewModel() {
                 RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
             }
         }
+    }
+
+    fun toggleDisableAnimations() {
+        disableAnimationsEnabled = !disableAnimationsEnabled
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setDisableAnimationsEnabled(disableAnimationsEnabled)
+            if (hasRoot) {
+                RootEngine.applyDisableAnimations(disableAnimationsEnabled)
+            } else if (hasShizuku) {
+                val scale = if (disableAnimationsEnabled) 0f else 1.0f
+                ShizukuEngine.setAnimScale(scale)
+            }
+        }
+    }
+
+    fun toggleNotifRam() {
+        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifRamVisible(!showNotifRam) }
+    }
+
+    fun toggleNotifCpu() {
+        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifCpuVisible(!showNotifCpu) }
+    }
+
+    fun toggleNotifPower() {
+        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifPowerVisible(!showNotifPower) }
+    }
+
+    fun toggleNotifProfiles() {
+        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifProfilesVisible(!showNotifProfiles) }
+    }
+
+    fun toggleNotifQuickClean() {
+        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifQuickCleanVisible(!showNotifQuickClean) }
     }
 
     fun setChargeLimit(enabled: Boolean, pct: Float) {
@@ -249,7 +304,7 @@ class MainViewModel : ViewModel() {
                 ctx.startService(intent)
             }
             isLiveServiceRunning = true
-            Toast.makeText(ctx, "Live AI Notification Enabled!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Live Service Enabled!", Toast.LENGTH_SHORT).show()
         }
     }
 

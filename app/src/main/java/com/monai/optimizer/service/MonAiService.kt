@@ -10,7 +10,9 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Process
+import android.view.View
 import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.monai.optimizer.MainActivity
@@ -44,6 +46,13 @@ class MonAiService : Service() {
     private var lastFocusInfo = AppFocusInfo("System Active", null, 0L)
     private var dumpsysPollTick = 0
 
+    // Notification Modular Flags
+    private var showNotifRam = true
+    private var showNotifCpu = true
+    private var showNotifPower = true
+    private var showNotifProfiles = true
+    private var showNotifQuickClean = false
+
     companion object {
         const val CHANNEL_ID = "monai_live_channel"
         const val NOTIF_ID = 9901
@@ -51,6 +60,7 @@ class MonAiService : Service() {
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
         const val ACTION_SET_PROFILE = "ACTION_SET_PROFILE"
+        const val ACTION_QUICK_CLEAN_RAM = "ACTION_QUICK_CLEAN_RAM"
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
 
         private const val MONITOR_INTERVAL_MS = 2000L
@@ -67,7 +77,6 @@ class MonAiService : Service() {
 
         var aiOptimizerEnabled = false
 
-        // Fail-Safe: Kembalikan fungsi cas ke normal di level hardware/kernel
         fun restoreChargingFailSafe() {
             try {
                 if (isChargePausedByLimit || isThermalThrottled) {
@@ -115,6 +124,12 @@ class MonAiService : Service() {
                 chargeSpeedMa = state.chargeSpeedMa
                 isThermalProtectEnabled = state.isThermalProtectEnabled
                 aiOptimizerEnabled = state.aiOptimizerEnabled
+
+                showNotifRam = state.showNotifRam
+                showNotifCpu = state.showNotifCpu
+                showNotifPower = state.showNotifPower
+                showNotifProfiles = state.showNotifProfiles
+                showNotifQuickClean = state.showNotifQuickClean
             }
         }
     }
@@ -153,6 +168,18 @@ class MonAiService : Service() {
                     }
                 }
             }
+            ACTION_QUICK_CLEAN_RAM -> {
+                scope.launch {
+                    if (RootEngine.hasRoot()) {
+                        RootEngine.killBgApps()
+                    } else if (ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()) {
+                        ShizukuEngine.killBgApps()
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(applicationContext, "RAM Cleaned via Notification!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
         }
         return START_STICKY
     }
@@ -178,7 +205,7 @@ class MonAiService : Service() {
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                // 1. Smart Charge Limit
+                // Smart Charge Limit
                 if (hasRoot && isChargeLimitEnabled) {
                     if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
                         ChargingEngine.setChargingEnabled(false)
@@ -189,18 +216,18 @@ class MonAiService : Service() {
                     }
                 }
 
-                // 2. Thermal Protection Hysteresis (Auto-Restore)
+                // Thermal Protection Hysteresis
                 if (hasRoot && isThermalProtectEnabled && bat.isCharging) {
                     if (bat.tempC > 42.0 && !isThermalThrottled) {
                         ChargingEngine.setChargeCurrentMaxMa(500)
                         isThermalThrottled = true
                     } else if (bat.tempC < 38.0 && isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa) // Kembali ke nilai setelan user
+                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
                         isThermalThrottled = false
                     }
                 }
 
-                // 3. Real Auto Optimizer (Smooth Rendering & Memory Pressure Adjustment)
+                // Smooth Rendering & Adaptive Memory
                 if (hasRoot && aiOptimizerEnabled) {
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     val memInfo = ActivityManager.MemoryInfo()
@@ -372,6 +399,8 @@ class MonAiService : Service() {
         valRead
     } catch (_: Exception) { 0 }
 
+    // ── Dynamic Custom Notification Builder ───────────────────────────
+
     private fun buildNotification(
         focus: AppFocusInfo,
         cpuFreq: String,
@@ -404,6 +433,13 @@ class MonAiService : Service() {
             }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val cleanRamIntent = PendingIntent.getService(
+            this, 4, Intent(this, MonAiService::class.java).apply {
+                action = ACTION_QUICK_CLEAN_RAM
+            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val displayTitle = if (focus.appLabel == "MonAi") "MonAi • Dashboard Active" else "MonAi • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
 
@@ -437,37 +473,50 @@ class MonAiService : Service() {
         val whiteColor = android.graphics.Color.WHITE
 
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
-            setTextViewText(R.id.txt_app_title, "MonAi • ${focus.appLabel}")
+            setTextViewText(R.id.txt_app_title, displayTitle)
             setTextViewText(R.id.txt_mode_badge, profileLabel)
-            setTextViewText(R.id.txt_col_ram, "RAM: $ramAppStr")
-            setTextViewText(R.id.txt_col_cpu, "CPU: $cpuFreq")
-            setTextViewText(R.id.txt_col_power, "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA")
+
+            setTextViewText(R.id.txt_col_ram, if (showNotifRam) "RAM: $ramAppStr" else "")
+            setTextViewText(R.id.txt_col_cpu, if (showNotifCpu) "CPU: $cpuFreq" else "")
+            setTextViewText(R.id.txt_col_power, if (showNotifPower) "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA" else "")
             setTextColor(R.id.txt_col_power, powerColor)
         }
 
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
-            setTextViewText(R.id.txt_exp_app_title, "MonAi • ${focus.appLabel}")
+            setTextViewText(R.id.txt_exp_app_title, displayTitle)
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
-            setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
-            setTextViewText(R.id.txt_exp_cpu_val, "$cpuFreq ($cpuTemp)")
-            setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
+
+            // Modular Visibility Checks
+            setTextViewText(R.id.txt_exp_ram_val, if (showNotifRam) ramAppStr else "OFF")
+            setTextViewText(R.id.txt_exp_cpu_val, if (showNotifCpu) "$cpuFreq ($cpuTemp)" else "OFF")
+            setTextViewText(R.id.txt_exp_power_val, if (showNotifPower) "$powerText • ${bat.percentage}% (${formattedTemp}°C)" else "OFF")
             setTextColor(R.id.txt_exp_power_val, powerColor)
 
-            setTextViewText(R.id.btn_notif_perf, labelPerf)
-            setTextViewText(R.id.btn_notif_bal, labelBal)
-            setTextViewText(R.id.btn_notif_save, labelSave)
+            if (showNotifProfiles) {
+                setViewVisibility(R.id.btn_notif_perf, View.VISIBLE)
+                setViewVisibility(R.id.btn_notif_bal, View.VISIBLE)
+                setViewVisibility(R.id.btn_notif_save, View.VISIBLE)
 
-            setInt(R.id.btn_notif_perf, "setBackgroundResource", if (isPerf) R.drawable.notif_btn_bg_perf_active else R.drawable.notif_btn_bg_perf)
-            setInt(R.id.btn_notif_bal, "setBackgroundResource", if (isBal) R.drawable.notif_btn_bg_bal_active else R.drawable.notif_btn_bg_bal)
-            setInt(R.id.btn_notif_save, "setBackgroundResource", if (isSave) R.drawable.notif_btn_bg_save_active else R.drawable.notif_btn_bg_save)
+                setTextViewText(R.id.btn_notif_perf, labelPerf)
+                setTextViewText(R.id.btn_notif_bal, labelBal)
+                setTextViewText(R.id.btn_notif_save, if (showNotifQuickClean) "🧹 CLEAN" else labelSave)
 
-            setTextColor(R.id.btn_notif_perf, if (isPerf) whiteColor else perfColor)
-            setTextColor(R.id.btn_notif_bal, if (isBal) whiteColor else balColor)
-            setTextColor(R.id.btn_notif_save, if (isSave) whiteColor else saveColor)
+                setInt(R.id.btn_notif_perf, "setBackgroundResource", if (isPerf) R.drawable.notif_btn_bg_perf_active else R.drawable.notif_btn_bg_perf)
+                setInt(R.id.btn_notif_bal, "setBackgroundResource", if (isBal) R.drawable.notif_btn_bg_bal_active else R.drawable.notif_btn_bg_bal)
+                setInt(R.id.btn_notif_save, "setBackgroundResource", if (showNotifQuickClean || isSave) R.drawable.notif_btn_bg_save_active else R.drawable.notif_btn_bg_save)
 
-            setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
-            setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)
-            setOnClickPendingIntent(R.id.btn_notif_save, saveIntent)
+                setTextColor(R.id.btn_notif_perf, if (isPerf) whiteColor else perfColor)
+                setTextColor(R.id.btn_notif_bal, if (isBal) whiteColor else balColor)
+                setTextColor(R.id.btn_notif_save, if (showNotifQuickClean || isSave) whiteColor else saveColor)
+
+                setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
+                setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)
+                setOnClickPendingIntent(R.id.btn_notif_save, if (showNotifQuickClean) cleanRamIntent else saveIntent)
+            } else {
+                setViewVisibility(R.id.btn_notif_perf, View.GONE)
+                setViewVisibility(R.id.btn_notif_bal, View.GONE)
+                setViewVisibility(R.id.btn_notif_save, View.GONE)
+            }
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)

@@ -39,6 +39,9 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             InfoBanner(vm.statusMsg)
         }
 
+        SectionLabel("NOTIFICATION DASHBOARD CUSTOMIZER")
+        NotifCustomizerCard(vm)
+
         SectionLabel("POWER")
         NavSummaryCard(
             icon = Icons.Filled.BatteryChargingFull,
@@ -57,7 +60,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.Memory,
             title = "Deep RAM Cleaner",
             desc = "Stop background tasks & flush memory",
-            accent = OrangeGlow,
+            accent = CyanGlow,
             enabled = hasControl,
             isRunning = vm.runningTools["ram_clean"] == true
         ) {
@@ -68,7 +71,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.DeleteSweep,
             title = "Drop Page Cache",
             desc = "sync; echo 3 > /proc/sys/vm/drop_caches",
-            accent = OrangeGlow,
+            accent = CyanGlow,
             enabled = vm.hasRoot,
             isRunning = vm.runningTools["drop_cache"] == true
         ) {
@@ -79,7 +82,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.Delete,
             title = "Clear System Caches",
             desc = "Trim & flush app cache",
-            accent = OrangeGlow,
+            accent = CyanGlow,
             enabled = hasControl,
             isRunning = vm.runningTools["clear_cache"] == true
         ) {
@@ -114,6 +117,43 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
         DangerResetCard(vm, hasControl)
 
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+fun NotifCustomizerCard(vm: MainViewModel) {
+    AppCard(accent = CyanGlow) {
+        Column(Modifier.padding(14.dp), Arrangement.spacedBy(8.dp)) {
+            Text("Customize Notification Bar", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text("Toggle modules to show/hide elements in live notification", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+
+            HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Show App RAM Usage", color = TextPrimary, fontSize = 12.sp)
+                Switch(checked = vm.showNotifRam, onCheckedChange = { vm.toggleNotifRam() })
+            }
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Show CPU Freq & Temp", color = TextPrimary, fontSize = 12.sp)
+                Switch(checked = vm.showNotifCpu, onCheckedChange = { vm.toggleNotifCpu() })
+            }
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Show Power Stream (Battery)", color = TextPrimary, fontSize = 12.sp)
+                Switch(checked = vm.showNotifPower, onCheckedChange = { vm.toggleNotifPower() })
+            }
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Show Profile Switcher Buttons", color = TextPrimary, fontSize = 12.sp)
+                Switch(checked = vm.showNotifProfiles, onCheckedChange = { vm.toggleNotifProfiles() })
+            }
+
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Text("Show Quick Clean RAM Button", color = TextPrimary, fontSize = 12.sp)
+                Switch(checked = vm.showNotifQuickClean, onCheckedChange = { vm.toggleNotifQuickClean() })
+            }
+        }
     }
 }
 
