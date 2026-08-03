@@ -34,34 +34,49 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Base elevated card used everywhere for visual consistency. */
+/**
+ * Base elevated card used everywhere for visual consistency.
+ *
+ * Catatan desain: `accent` TIDAK lagi dipakai untuk mewarnai border kartu
+ * (itu penyebab kesan "cyber/menyala"). Border selalu hairline netral;
+ * accent hanya dipakai kalau [emphasize] = true, untuk 1 kartu paling
+ * penting per layar (mis. status utama), bukan semua kartu sekaligus.
+ */
 @Composable
 fun AppCard(
     modifier: Modifier = Modifier,
     accent: Color? = null,
+    emphasize: Boolean = false,
     containerColor: Color = Surface2,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val borderColor = when {
+        emphasize && accent != null -> accent.copy(alpha = 0.28f)
+        else -> GlassBorder
+    }
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, accent?.copy(alpha = 0.35f) ?: GlassBorder),
+        border = BorderStroke(1.dp, borderColor),
         content = content
     )
 }
 
-/** Small round icon badge with a tinted background, used as leading visual on cards/rows. */
+/** Small round icon badge. Netral (abu-abu) secara default; accent penuh
+ *  dipakai hanya kalau [active] = true, supaya warna jadi sinyal makna,
+ *  bukan dekorasi yang muncul di setiap baris. */
 @Composable
-fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 19.dp) {
+fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 19.dp, active: Boolean = false) {
+    val effectiveTint = if (active) tint else TextSecondary
     Box(
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(11.dp))
-            .background(tint.copy(alpha = 0.14f)),
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (active) tint.copy(alpha = 0.12f) else Surface3),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(iconSize))
+        Icon(icon, null, tint = effectiveTint, modifier = Modifier.size(iconSize))
     }
 }
 
@@ -115,9 +130,9 @@ fun NavSummaryCard(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = Surface2,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, GlassBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -125,7 +140,7 @@ fun NavSummaryCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconBadge(icon, accent)
+            IconBadge(icon, accent, active = true)
             Column(Modifier.weight(1f)) {
                 Text(title, color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -147,13 +162,13 @@ fun ToolActionRow(
     isRunning: Boolean,
     onClick: () -> Unit
 ) {
-    AppCard(accent = if (enabled) null else RedErr.copy(alpha = 0.5f)) {
+    AppCard {
         Row(
             Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconBadge(icon, if (enabled) accent else TextDisabled, size = 34.dp, iconSize = 16.dp)
+            IconBadge(icon, TextSecondary, size = 34.dp, iconSize = 16.dp)
             Column(Modifier.weight(1f)) {
                 Text(title, color = if (enabled) TextPrimary else TextDisabled, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                 Text(desc, color = TextSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -163,14 +178,14 @@ fun ToolActionRow(
                 enabled = enabled && !isRunning,
                 shape = RoundedCornerShape(9.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = if (enabled) accent.copy(alpha = 0.16f) else TextDisabled.copy(alpha = 0.1f),
-                    contentColor = if (enabled) accent else TextDisabled
+                    containerColor = if (enabled) AccentMuted else TextDisabled.copy(alpha = 0.1f),
+                    contentColor = if (enabled) Accent else TextDisabled
                 ),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 modifier = Modifier.height(32.dp)
             ) {
                 if (isRunning) {
-                    CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 1.6.dp, color = accent)
+                    CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 1.6.dp, color = Accent)
                 } else {
                     Text(if (enabled) "Run" else "Locked", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -181,11 +196,11 @@ fun ToolActionRow(
 
 /** Inline status/info banner (success, error, neutral). */
 @Composable
-fun InfoBanner(text: String, accent: Color = CyanGlow) {
+fun InfoBanner(text: String, accent: Color = TextSecondary) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = accent.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f))
+        color = Surface3,
+        border = BorderStroke(1.dp, GlassBorder)
     ) {
         Text(text, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), color = accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }

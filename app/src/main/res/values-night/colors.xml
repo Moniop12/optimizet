@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark Mode Notification Colors -->
-    <color name="notif_title_color">#FFFFFF</color>
-    <color name="notif_sub_color">#94A3B8</color>
-    <color name="notif_ram_color">#00F2FE</color>
-    <color name="notif_cpu_color">#38BDF8</color>
-    <color name="notif_power_discharge">#F87171</color>
-    <color name="notif_power_charge">#34D399</color>
+    <!-- Dark Mode Notification Colors — monokrom netral, tanpa neon cyan. -->
+    <color name="notif_title_color">#F2F2F3</color>
+    <color name="notif_sub_color">#98989F</color>
+    <color name="notif_ram_color">#C7C7CC</color>
+    <color name="notif_cpu_color">#C7C7CC</color>
+    <color name="notif_power_discharge">#D08A8C</color>
+    <color name="notif_power_charge">#8CBBA0</color>
 
-    <!-- Button Backgrounds Dark Mode -->
-    <color name="notif_btn_perf_bg">#25FF8A65</color>
-    <color name="notif_btn_bal_bg">#2538BDF8</color>
-    <color name="notif_btn_save_bg">#2534D399</color>
+    <color name="notif_btn_perf_bg">#14FFFFFF</color>
+    <color name="notif_btn_bal_bg">#14FFFFFF</color>
+    <color name="notif_btn_save_bg">#14FFFFFF</color>
+    <color name="notif_btn_active_bg">#24FFFFFF</color>
 
-    <!-- Badge & Divider Dark Mode -->
-    <color name="notif_badge_bg">#2000F2FE</color>
-    <color name="notif_divider">#26FFFFFF</color>
+    <color name="notif_badge_bg">#14FFFFFF</color>
+    <color name="notif_divider">#20FFFFFF</color>
 </resources>

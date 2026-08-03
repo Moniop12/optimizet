@@ -470,10 +470,10 @@ class MonAiService : Service() {
         val labelBal = if (isBal) "✓ BALANCED" else "BALANCED"
         val labelSave = if (isSave) "✓ SAVER" else "SAVER"
 
-        val perfColor = ContextCompat.getColor(this, R.color.notif_power_discharge)
-        val balColor  = ContextCompat.getColor(this, R.color.notif_cpu_color)
-        val saveColor = ContextCompat.getColor(this, R.color.notif_power_charge)
-        val whiteColor = android.graphics.Color.WHITE
+        val perfColor = ContextCompat.getColor(this, R.color.notif_sub_color)
+        val balColor  = ContextCompat.getColor(this, R.color.notif_sub_color)
+        val saveColor = ContextCompat.getColor(this, R.color.notif_sub_color)
+        val whiteColor = ContextCompat.getColor(this, R.color.notif_title_color)
 
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
             setTextViewText(R.id.txt_app_title, displayTitle)

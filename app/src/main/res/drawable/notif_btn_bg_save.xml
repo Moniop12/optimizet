@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/notif_btn_save_bg"/>
-    <corners android:radius="14dp"/>
+    <solid android:color="@color/notif_btn_bal_bg"/>
+    <corners android:radius="10dp"/>
 </shape>
