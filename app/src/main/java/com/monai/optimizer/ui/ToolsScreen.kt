@@ -175,9 +175,9 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
 
 @Composable
 fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
-    AppCard(accent = RedErr, containerColor = RedErr.copy(alpha = 0.07f)) {
+    AppCard(emphasize = true, accent = RedErr) {
         Row(Modifier.padding(12.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
-            IconBadge(Icons.Filled.RestartAlt, RedErr, size = 34.dp, iconSize = 16.dp)
+            IconBadge(Icons.Filled.RestartAlt, RedErr, size = 34.dp, iconSize = 16.dp, active = true)
             Column(Modifier.weight(1f)) {
                 Text("Reset to Stock Defaults", color = RedErr, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text("Restore governor, sysctl & doze to factory settings", color = TextSecondary, style = MaterialTheme.typography.bodySmall)

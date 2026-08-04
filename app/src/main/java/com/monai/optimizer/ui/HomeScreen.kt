@@ -25,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -70,7 +69,7 @@ fun HomeScreen(vm: MainViewModel) {
                     Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(11.dp))
-                        .background(Brush.linearGradient(listOf(CyanGlow, EmeraldGlow))),
+                        .background(Accent),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Speed, null, tint = Color.White, modifier = Modifier.size(20.dp))
@@ -131,11 +130,11 @@ fun HomeScreen(vm: MainViewModel) {
 fun SystemTweaksCard(vm: MainViewModel) {
     val ctx = LocalContext.current
 
-    AppCard(accent = CyanGlow, containerColor = CyanGlow.copy(alpha = 0.08f)) {
+    AppCard {
         Column(Modifier.padding(14.dp), Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge(Icons.Filled.AutoAwesome, CyanGlow)
+                    IconBadge(Icons.Filled.AutoAwesome, CyanGlow, active = true)
                     Column {
                         Text("Smooth UI & Rendering Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text("SurfaceFlinger, Skia GPU & Anim 0.5x", color = TextSecondary, style = MaterialTheme.typography.bodySmall)

@@ -66,7 +66,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconBadge(Icons.Filled.BatteryChargingFull, Accent, size = 34.dp, iconSize = 16.dp, active = vm.isChargeLimitEnabled)
+                        IconBadge(Icons.Filled.BatteryChargingFull, EmeraldGlow, size = 34.dp, iconSize = 16.dp, active = vm.isChargeLimitEnabled)
                         Column(Modifier.weight(1f)) {
                             Text("Charge Limit", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text("Stop otomatis di level tertentu", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
@@ -102,7 +102,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconBadge(Icons.Filled.Thermostat, Accent, size = 34.dp, iconSize = 16.dp, active = vm.isThermalProtectEnabled)
+                        IconBadge(Icons.Filled.Thermostat, OrangeGlow, size = 34.dp, iconSize = 16.dp, active = vm.isThermalProtectEnabled)
                         Column(Modifier.weight(1f)) {
                             Text("Thermal Protection", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text("Throttle 500mA di atas 42°C", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
@@ -119,7 +119,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                     // ── Charging Speed ─────────────────────────────
                     Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconBadge(Icons.Filled.Bolt, Accent, size = 34.dp, iconSize = 16.dp)
+                            IconBadge(Icons.Filled.Bolt, EmeraldGlow, size = 34.dp, iconSize = 16.dp, active = true)
                             Column {
                                 Text("Charging Speed", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 Text("Batas arus (mA) saat mengisi daya", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
