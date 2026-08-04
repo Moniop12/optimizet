@@ -32,16 +32,19 @@ val Accent      = Color(0xFF7B8CFF)
 val AccentMuted = Color(0xFF2B3050)
 val OnAccent    = Color(0xFF11121A)
 
-val StatusError = Color(0xFFE0808A)
+val StatusError = Color(0xFFFF6B76)  // dinaikin dari #E0808A — sebelumnya kalah kontras
 val StatusWarn  = Color(0xFFE0AC70)
 val StatusOk    = Color(0xFF6FCB94)
 
 // ── Warna kontekstual per fitur — dipakai HANYA di ikon (bukan seluruh
-// kartu), disesuaikan biar tetap kebaca jelas di atas kartu gelap. ──
+// kartu), disesuaikan biar tetap kebaca jelas di atas kartu gelap. Tiap
+// kategori fitur dapat 1 warna beda, jadi nggak numpuk semua di biru. ──
 val BatteryGreen  = Color(0xFF6FCB94)  // baterai, root, status "aktif/aman"
 val PerfOrange    = Color(0xFFE8A365)  // performa/CPU, panas/thermal
-val MemoryBlue    = Color(0xFF7B8CFF)  // RAM, notifikasi, AI/smart (= Accent)
-val CleanPurple   = Color(0xFFB79AEE)  // cleaning/cache/trim
+val MemoryBlue    = Color(0xFF7B8CFF)  // RAM & notifikasi (= Accent)
+val CleanPurple   = Color(0xFFB98CE0)  // cache/cleaning (Drop Cache, Clear Cache)
+val UtilityTeal   = Color(0xFF5FC7C2)  // tools sistem/ADB (Trim Memory, dll)
+val DangerRed     = Color(0xFFFF6B76)  // reset/hapus permanen (= StatusError)
 
 // ─────────────────────────────────────────────────────────────────
 val CyanGlow    = MemoryBlue

@@ -81,7 +81,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.DeleteSweep,
             title = "Drop Page Cache",
             desc = "sync; echo 3 > /proc/sys/vm/drop_caches",
-            accent = CyanGlow,
+            accent = PurpleGlow,
             enabled = vm.hasRoot,
             isRunning = vm.runningTools["drop_cache"] == true
         ) {
@@ -92,7 +92,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.Delete,
             title = "Clear System Caches",
             desc = "Trim & flush app cache",
-            accent = CyanGlow,
+            accent = PurpleGlow,
             enabled = hasControl,
             isRunning = vm.runningTools["clear_cache"] == true
         ) {
@@ -105,7 +105,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             icon = Icons.Filled.Stop,
             title = "Trim App Memory (ADB)",
             desc = "Send trim signal to all third-party apps",
-            accent = CyanGlow,
+            accent = UtilityTeal,
             enabled = hasControl,
             isRunning = vm.runningTools["trim_mem"] == true
         ) {
@@ -200,7 +200,7 @@ fun GovernorCard(vm: MainViewModel) {
     AppCard {
         Column(Modifier.padding(12.dp), Arrangement.spacedBy(6.dp)) {
             Text("CPU Governor Control", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text("Active: ${vm.currentGov}", color = CyanGlow, style = MaterialTheme.typography.bodySmall)
+            Text("Active: ${vm.currentGov}", color = OrangeGlow, style = MaterialTheme.typography.bodySmall)
 
             if (!vm.hasRoot) {
                 Text("Requires root access", color = RedErr, fontSize = 10.sp)
