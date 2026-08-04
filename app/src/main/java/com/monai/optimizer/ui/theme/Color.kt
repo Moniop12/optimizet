@@ -28,22 +28,22 @@ val GlassBorderStrong  = Color(0x26FFFFFF)
 // Accent utama (brand/interaktif) — dinaikkan sedikit terangnya dari versi
 // terang biar tetap nyala jelas di atas dasar gelap, tapi masih desaturated
 // (bukan indigo neon).
-val Accent      = Color(0xFF7B8CFF)
-val AccentMuted = Color(0xFF2B3050)
+val Accent      = Color(0xFF8291FF)
+val AccentMuted = Color(0xFF2E3466)
 val OnAccent    = Color(0xFF11121A)
 
 val StatusError = Color(0xFFFF6B76)  // dinaikin dari #E0808A — sebelumnya kalah kontras
-val StatusWarn  = Color(0xFFE0AC70)
-val StatusOk    = Color(0xFF6FCB94)
+val StatusWarn  = Color(0xFFFFB870)
+val StatusOk    = Color(0xFF4CD888)
 
 // ── Warna kontekstual per fitur — dipakai HANYA di ikon (bukan seluruh
 // kartu), disesuaikan biar tetap kebaca jelas di atas kartu gelap. Tiap
 // kategori fitur dapat 1 warna beda, jadi nggak numpuk semua di biru. ──
-val BatteryGreen  = Color(0xFF6FCB94)  // baterai, root, status "aktif/aman"
-val PerfOrange    = Color(0xFFE8A365)  // performa/CPU, panas/thermal
-val MemoryBlue    = Color(0xFF7B8CFF)  // RAM & notifikasi (= Accent)
-val CleanPurple   = Color(0xFFB98CE0)  // cache/cleaning (Drop Cache, Clear Cache)
-val UtilityTeal   = Color(0xFF5FC7C2)  // tools sistem/ADB (Trim Memory, dll)
+val BatteryGreen  = Color(0xFF4CD888)  // baterai, root, status "aktif/aman" — dinaikin dari #6FCB94
+val PerfOrange    = Color(0xFFFFA24C)  // performa/CPU, panas/thermal — dinaikin dari #E8A365
+val MemoryBlue    = Color(0xFF8291FF)  // RAM & notifikasi (= Accent) — sedikit lebih cerah
+val CleanPurple   = Color(0xFFB37FFF)  // cache/cleaning — dinaikin dari #B98CE0
+val UtilityTeal   = Color(0xFF33D6CE)  // tools sistem/ADB — dinaikin dari #5FC7C2
 val DangerRed     = Color(0xFFFF6B76)  // reset/hapus permanen (= StatusError)
 
 // ─────────────────────────────────────────────────────────────────

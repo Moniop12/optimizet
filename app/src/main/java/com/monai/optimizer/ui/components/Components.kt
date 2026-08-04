@@ -84,7 +84,7 @@ fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 1
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (active) tint.copy(alpha = 0.14f) else InkDisabled.copy(alpha = 0.18f)),
+            .background(if (active) tint.copy(alpha = 0.22f) else InkDisabled.copy(alpha = 0.18f)),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, null, tint = effectiveTint, modifier = Modifier.size(iconSize))
