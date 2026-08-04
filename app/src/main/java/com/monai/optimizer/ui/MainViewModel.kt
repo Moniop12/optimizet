@@ -212,11 +212,13 @@ class MainViewModel : ViewModel() {
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setAiOptimizerEnabled(aiOptimizerEnabled)
-            if (hasRoot) {
-                RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
+            when {
+                hasRoot -> RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
+                hasShizuku -> ShizukuEngine.setAnimScale(if (aiOptimizerEnabled) 0.5f else 1.0f)
             }
             withContext(Dispatchers.Main) {
-                val status = if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled"
+                val scopeNote = if (!hasRoot && hasShizuku) " (Shizuku: anim speed only)" else ""
+                val status = (if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled") + scopeNote
                 postNotifLogMsg(ctx, "⚡ $status")
             }
         }
@@ -377,19 +379,41 @@ class MainViewModel : ViewModel() {
             withContext(Dispatchers.Main) {
                 isOptimizing = true
                 progress = 0f
-                statusMsg = "Restoring factory defaults..."
+                statusMsg = "Restoring defaults..."
                 statusSuccess = null
             }
 
-            val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
-            val newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
+            val newLog: List<LogEntry>
+            val resultMsg: String
+            when {
+                hasRoot -> {
+                    val res = RootEngine.resetToDefaults()
+                    newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
+                    resultMsg = if (res.all { it.success }) "Reset to factory defaults (Root — full)"
+                                else "Reset partially failed — check Log"
+                }
+                hasShizuku -> {
+                    val res = ShizukuEngine.resetToDefaults()
+                    newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
+                    resultMsg = if (res.all { it.success })
+                        "Reset applied (Shizuku — anim & process limit only, governor/kernel unchanged: needs root)"
+                    else "Reset partially failed — check Log"
+                }
+                else -> {
+                    newLog = emptyList()
+                    resultMsg = "No root or Shizuku — nothing to reset"
+                }
+            }
 
+            aiOptimizerEnabled = false
+            MonAiService.aiOptimizerEnabled = false
+            prefsRepo.setAiOptimizerEnabled(false)
             prefsRepo.setActiveProfile(null)
 
             withContext(Dispatchers.Main) {
                 progress = 1f
-                statusMsg = "Successfully reset to factory defaults"
-                statusSuccess = true
+                statusMsg = resultMsg
+                statusSuccess = newLog.isNotEmpty() && newLog.all { it.success }
                 activeProfile = null
                 MonAiService.currentActiveProfile = null
                 log = newLog + log

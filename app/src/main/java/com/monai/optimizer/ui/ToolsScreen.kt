@@ -183,7 +183,11 @@ fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
             IconBadge(Icons.Filled.RestartAlt, RedErr, size = 34.dp, iconSize = 16.dp, active = true)
             Column(Modifier.weight(1f)) {
                 Text("Reset to Stock Defaults", color = RedErr, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("Restore governor, sysctl & doze to factory settings", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (vm.hasRoot) "Restore governor, sysctl & doze to factory settings"
+                    else "Restore anim speed & process limit (Shizuku) — governor/sysctl needs root",
+                    color = TextSecondary, style = MaterialTheme.typography.bodySmall
+                )
             }
             OutlinedButton(
                 onClick = { vm.resetToDefaults() },

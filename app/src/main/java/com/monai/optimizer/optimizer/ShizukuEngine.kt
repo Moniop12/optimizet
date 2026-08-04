@@ -77,4 +77,13 @@ object ShizukuEngine {
         "settings put global transition_animation_scale $s && " +
         "settings put global animator_duration_scale $s"
     )
+
+    // ── Reset (scope terbatas — cuma yg genuinely bisa Shizuku sentuh) ──
+    // TIDAK bisa reset governor/sysctl kernel (butuh root beneran, sysfs
+    // /proc read-only buat shell UID). Jangan diklaim "full reset".
+    fun resetToDefaults(): List<SCmd> = listOf(
+        setAnimScale(1.0f),
+        sh("settings delete global background_process_limit"),
+        sh("dumpsys deviceidle disable")
+    )
 }

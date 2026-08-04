@@ -137,13 +137,18 @@ fun SystemTweaksCard(vm: MainViewModel) {
                     IconBadge(Icons.Filled.AutoAwesome, CyanGlow, active = true)
                     Column {
                         Text("Smooth UI & Rendering Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("SurfaceFlinger, Skia GPU & Anim 0.5x", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (vm.hasRoot) "SurfaceFlinger, Skia GPU & Anim 0.5x"
+                            else if (vm.hasShizuku) "Anim speed only — full GPU tweak needs root"
+                            else "Requires root or Shizuku",
+                            color = TextSecondary, style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
                 Switch(
                     checked = vm.aiOptimizerEnabled,
                     onCheckedChange = { vm.toggleAiOptimizer(ctx) },
-                    enabled = vm.hasRoot,
+                    enabled = vm.hasRoot || vm.hasShizuku,
                     colors = SwitchDefaults.colors(checkedTrackColor = CyanGlow)
                 )
             }
@@ -151,7 +156,7 @@ fun SystemTweaksCard(vm: MainViewModel) {
             // Indicator Badge Ramping
             Row(Modifier.fillMaxWidth()) {
                 Text(
-                    "• Status Engine: ${if (vm.aiOptimizerEnabled) "ACTIVE (Smooth Scroll + Anim 0.5x)" else "OFF"}",
+                    "• Status Engine: ${if (vm.aiOptimizerEnabled) (if (vm.hasRoot) "ACTIVE (Smooth Scroll + Anim 0.5x)" else "ACTIVE (Anim 0.5x, Shizuku)") else "OFF"}",
                     color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
