@@ -52,6 +52,7 @@ class MainViewModel : ViewModel() {
     var progress by mutableFloatStateOf(0f)
         private set
     var statusMsg by mutableStateOf("")
+    var statusSuccess by mutableStateOf<Boolean?>(null)  // null = netral, true = hijau, false = merah
         private set
     var activeProfile by mutableStateOf<OptProfile?>(null)
         private set
@@ -273,6 +274,7 @@ class MainViewModel : ViewModel() {
                 val r = ChargingEngine.setChargeCurrentMaxMa(clamped)
                 withContext(Dispatchers.Main) {
                     statusMsg = if (r.success) "Charging speed set to $clamped mA" else "Kernel does not support current limiting"
+                    statusSuccess = r.success
                     log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
                 }
             }
@@ -316,6 +318,7 @@ class MainViewModel : ViewModel() {
                 isOptimizing = true
                 progress = 0f
                 statusMsg = "Running optimization..."
+                statusSuccess = null
             }
 
             val rootCmds: List<CmdResult> = if (hasRoot) when (profile) {
@@ -359,6 +362,7 @@ class MainViewModel : ViewModel() {
             withContext(Dispatchers.Main) {
                 progress = 1f
                 statusMsg = "Done (${newLog.count { it.success }}/${newLog.size} OK)"
+                statusSuccess = newLog.isNotEmpty() && newLog.all { it.success }
                 activeProfile = profile
                 MonAiService.currentActiveProfile = profile
                 log = newLog + log
@@ -374,6 +378,7 @@ class MainViewModel : ViewModel() {
                 isOptimizing = true
                 progress = 0f
                 statusMsg = "Restoring factory defaults..."
+                statusSuccess = null
             }
 
             val res = if (hasRoot) RootEngine.resetToDefaults() else emptyList()
@@ -384,6 +389,7 @@ class MainViewModel : ViewModel() {
             withContext(Dispatchers.Main) {
                 progress = 1f
                 statusMsg = "Successfully reset to factory defaults"
+                statusSuccess = true
                 activeProfile = null
                 MonAiService.currentActiveProfile = null
                 log = newLog + log
@@ -399,8 +405,10 @@ class MainViewModel : ViewModel() {
                 if (r.success) {
                     currentGov = gov
                     statusMsg = "CPU Governor -> $gov"
+                    statusSuccess = true
                 } else {
                     statusMsg = "Failed to set $gov"
+                    statusSuccess = false
                 }
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
@@ -429,6 +437,7 @@ class MainViewModel : ViewModel() {
                 runningTools[toolId] = false
                 val msg = if (success) "$label succeeded" else "$label failed"
                 statusMsg = msg
+                statusSuccess = success
                 postNotifLogMsg(ctx, "⚡ $msg")
                 log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
             }

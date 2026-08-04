@@ -40,7 +40,10 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
         Text("Fine-grained hardware & OS control", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
 
         if (vm.statusMsg.isNotEmpty()) {
-            InfoBanner(vm.statusMsg)
+            InfoBanner(
+                vm.statusMsg,
+                accent = when (vm.statusSuccess) { true -> GreenOk; false -> RedErr; null -> TextSecondary }
+            )
         }
 
         SectionLabel("NOTIFICATION BAR")

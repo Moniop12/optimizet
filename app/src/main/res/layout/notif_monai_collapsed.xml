@@ -5,8 +5,8 @@
     android:orientation="vertical"
     android:paddingStart="6dp"
     android:paddingEnd="6dp"
-    android:paddingTop="3dp"
-    android:paddingBottom="3dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
     android:background="@android:color/transparent">
 
     <LinearLayout
@@ -29,13 +29,14 @@
             android:id="@+id/txt_mode_badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="7dp"
-            android:paddingEnd="7dp"
+            android:layout_marginStart="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:paddingTop="2dp"
             android:paddingBottom="2dp"
             android:background="@drawable/notif_badge_bg"
             android:text="AUTO"
-            android:textColor="@color/notif_ram_color"
+            android:textColor="@color/notif_bal_color"
             android:textStyle="bold"
             android:textSize="10sp"/>
     </LinearLayout>
@@ -44,7 +45,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="5dp">
+        android:layout_marginTop="4dp">
         <TextView
             android:id="@+id/txt_col_ram"
             android:layout_width="0dp"
@@ -53,7 +54,9 @@
             android:text="RAM: 127 MB"
             android:textColor="@color/notif_ram_color"
             android:textSize="11sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end"/>
         <TextView
             android:id="@+id/txt_col_cpu"
             android:layout_width="0dp"
@@ -62,7 +65,9 @@
             android:text="CPU: 633 MHz"
             android:textColor="@color/notif_cpu_color"
             android:textSize="11sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end"/>
         <TextView
             android:id="@+id/txt_col_power"
             android:layout_width="0dp"
@@ -71,6 +76,8 @@
             android:text="-714 mA"
             android:textColor="@color/notif_power_discharge"
             android:textSize="11sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end"/>
     </LinearLayout>
 </LinearLayout>

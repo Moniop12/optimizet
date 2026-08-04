@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark Mode Notification Colors — monokrom netral, tanpa neon cyan. -->
-    <color name="notif_title_color">#F2F2F3</color>
-    <color name="notif_sub_color">#98989F</color>
-    <color name="notif_ram_color">#C7C7CC</color>
-    <color name="notif_cpu_color">#C7C7CC</color>
-    <color name="notif_power_discharge">#D08A8C</color>
-    <color name="notif_power_charge">#8CBBA0</color>
+    <!-- Dark Mode Notification Colors — sama persis dgn palet app dark theme. -->
+    <color name="notif_title_color">#F3F4F6</color>
+    <color name="notif_sub_color">#A1A6B3</color>
+    <color name="notif_ram_color">#8291FF</color>
+    <color name="notif_cpu_color">#8291FF</color>
+    <color name="notif_power_discharge">#FF6B76</color>
+    <color name="notif_power_charge">#4CD888</color>
+    <color name="notif_perf_color">#FFA24C</color>
+    <color name="notif_bal_color">#8291FF</color>
+    <color name="notif_save_color">#4CD888</color>
 
-    <color name="notif_btn_perf_bg">#14FFFFFF</color>
-    <color name="notif_btn_bal_bg">#14FFFFFF</color>
-    <color name="notif_btn_save_bg">#14FFFFFF</color>
-    <color name="notif_btn_active_bg">#24FFFFFF</color>
+    <color name="notif_btn_perf_bg">#26FFA24C</color>
+    <color name="notif_btn_bal_bg">#268291FF</color>
+    <color name="notif_btn_save_bg">#264CD888</color>
+    <color name="notif_btn_perf_active_bg">#FFA24C</color>
+    <color name="notif_btn_bal_active_bg">#8291FF</color>
+    <color name="notif_btn_save_active_bg">#4CD888</color>
+    <color name="notif_btn_active_text">#11121A</color>
 
-    <color name="notif_badge_bg">#14FFFFFF</color>
+    <color name="notif_chip_bg">#14FFFFFF</color>
+    <color name="notif_chip_stroke">#1FFFFFFF</color>
+    <color name="notif_badge_bg">#1CFFFFFF</color>
+    <color name="notif_badge_stroke">#26FFFFFF</color>
     <color name="notif_divider">#20FFFFFF</color>
 </resources>

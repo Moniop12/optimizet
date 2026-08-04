@@ -29,13 +29,14 @@
             android:id="@+id/txt_exp_mode_badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:layout_marginStart="6dp"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
             android:paddingTop="3dp"
             android:paddingBottom="3dp"
             android:background="@drawable/notif_badge_bg"
             android:text="MODE: AUTO"
-            android:textColor="@color/notif_sub_color"
+            android:textColor="@color/notif_bal_color"
             android:textStyle="bold"
             android:textSize="10sp"/>
     </LinearLayout>
@@ -53,10 +54,17 @@
         android:orientation="horizontal">
 
         <LinearLayout
+            android:id="@+id/chip_ram"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_marginEnd="6dp"
+            android:orientation="vertical"
+            android:background="@drawable/notif_chip_bg"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -73,14 +81,22 @@
                 android:text="127 MB"
                 android:textColor="@color/notif_ram_color"
                 android:textStyle="bold"
-                android:textSize="13sp"/>
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end"/>
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/chip_cpu"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.3"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:background="@drawable/notif_chip_bg"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -97,15 +113,23 @@
                 android:text="633 / 1843 MHz (39.0°C)"
                 android:textColor="@color/notif_cpu_color"
                 android:textStyle="bold"
-                android:textSize="13sp"/>
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:ellipsize="end"/>
         </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/chip_power"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginTop="8dp">
+        android:layout_marginTop="6dp"
+        android:background="@drawable/notif_chip_bg"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -122,7 +146,9 @@
             android:text="-714 mA (Discharge) • 50% (39.0°C)"
             android:textColor="@color/notif_power_discharge"
             android:textStyle="bold"
-            android:textSize="13sp"/>
+            android:textSize="13sp"
+            android:singleLine="true"
+            android:ellipsize="end"/>
     </LinearLayout>
 
     <LinearLayout
@@ -134,12 +160,12 @@
         <TextView
             android:id="@+id/btn_notif_perf"
             android:layout_width="0dp"
-            android:layout_height="30dp"
+            android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:gravity="center"
             android:text="PERF"
-            android:textColor="@color/notif_power_discharge"
+            android:textColor="@color/notif_perf_color"
             android:textSize="10sp"
             android:textStyle="bold"
             android:letterSpacing="0.03"
@@ -148,12 +174,12 @@
         <TextView
             android:id="@+id/btn_notif_bal"
             android:layout_width="0dp"
-            android:layout_height="30dp"
+            android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
             android:gravity="center"
             android:text="BALANCED"
-            android:textColor="@color/notif_cpu_color"
+            android:textColor="@color/notif_bal_color"
             android:textSize="10sp"
             android:textStyle="bold"
             android:letterSpacing="0.03"
@@ -162,11 +188,11 @@
         <TextView
             android:id="@+id/btn_notif_save"
             android:layout_width="0dp"
-            android:layout_height="30dp"
+            android:layout_height="32dp"
             android:layout_weight="1"
             android:gravity="center"
             android:text="SAVER"
-            android:textColor="@color/notif_power_charge"
+            android:textColor="@color/notif_save_color"
             android:textSize="10sp"
             android:textStyle="bold"
             android:letterSpacing="0.03"

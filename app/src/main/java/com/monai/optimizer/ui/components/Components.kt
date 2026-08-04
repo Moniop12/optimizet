@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -211,14 +213,35 @@ fun ToolActionRow(
     }
 }
 
-/** Inline status/info banner (success, error, neutral). */
+/** Inline status/info banner (success, error, neutral) — background & ikon
+ *  ikut warna accent (tint lembut), bukan cuma teksnya doang. */
 @Composable
 fun InfoBanner(text: String, accent: Color = TextSecondary) {
+    val bannerShape = RoundedCornerShape(14.dp)
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Surface3,
-        modifier = Modifier.shadow(elevation = 3.dp, shape = RoundedCornerShape(14.dp), ambientColor = CardShadow, spotColor = CardShadow)
+        shape = bannerShape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        modifier = Modifier
+            .shadow(elevation = 3.dp, shape = bannerShape, ambientColor = CardShadow, spotColor = CardShadow)
+            .clip(bannerShape)
+            .background(Surface3)
+            .background(accent.copy(alpha = 0.12f))
     ) {
-        Text(text, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), color = accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val icon = when (accent) {
+                GreenOk -> Icons.Filled.CheckCircle
+                RedErr -> Icons.Filled.ErrorOutline
+                else -> null
+            }
+            if (icon != null) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(16.dp))
+            }
+            Text(text, color = accent, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+        }
     }
 }
