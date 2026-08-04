@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -38,10 +39,11 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 /**
  * Base elevated card used everywhere for visual consistency.
  *
- * Shadow tunggal gelap (bukan blur ganda neumorphic) — lebih bersih &
- * konsisten di semua device. [emphasize] = true dipakai untuk 1 kartu
- * paling penting/aktif per layar (shadow sedikit lebih tebal + cincin
- * tipis warna accent), bukan untuk semua kartu sekaligus.
+ * Kartu = satu tingkat lebih terang dari background ([Surface2] vs
+ * [BgBase]) — di dark mode kontras dari tone jauh lebih kelihatan
+ * daripada shadow tipis. Highlight tipis di tepi atas (gloss) menambah
+ * kesan "mengkilap" ala M3 Expressive tanpa border tebal atau blur ganda.
+ * [emphasize] = true dipakai untuk 1 kartu paling penting/aktif per layar.
  */
 @Composable
 fun AppCard(
@@ -51,19 +53,23 @@ fun AppCard(
     containerColor: Color = Surface2,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Card(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = if (emphasize) 10.dp else 6.dp,
-                shape = RoundedCornerShape(20.dp),
+                elevation = if (emphasize) 12.dp else 5.dp,
+                shape = shape,
                 ambientColor = CardShadow,
                 spotColor = CardShadow
-            ),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+            )
+            .clip(shape)
+            .background(containerColor)
+            .background(Brush.verticalGradient(listOf(GlossHighlight, GlossFade), endY = 140f)),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = if (emphasize && accent != null) BorderStroke(1.2.dp, accent.copy(alpha = 0.35f)) else null,
+        border = if (emphasize && accent != null) BorderStroke(1.2.dp, accent.copy(alpha = 0.4f)) else BorderStroke(1.dp, HairlineBorder),
         content = content
     )
 }
@@ -133,13 +139,18 @@ fun NavSummaryCard(
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null
 ) {
+    val navShape = RoundedCornerShape(20.dp)
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        color = Surface2,
+        shape = navShape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, HairlineBorder),
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 6.dp, shape = RoundedCornerShape(20.dp), ambientColor = CardShadow, spotColor = CardShadow)
+            .shadow(elevation = 5.dp, shape = navShape, ambientColor = CardShadow, spotColor = CardShadow)
+            .clip(navShape)
+            .background(Surface2)
+            .background(Brush.verticalGradient(listOf(GlossHighlight, GlossFade), endY = 140f))
     ) {
         Row(
             Modifier.padding(14.dp),

@@ -3,11 +3,11 @@ package com.monai.optimizer.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
-private val MonAiColorScheme = lightColorScheme(
+private val MonAiColorScheme = darkColorScheme(
     primary              = Accent,
     onPrimary            = OnAccent,
     primaryContainer     = AccentMuted,
@@ -15,12 +15,12 @@ private val MonAiColorScheme = lightColorScheme(
     secondary            = InkSecondary,
     onSecondary          = InkPrimary,
     tertiary             = InkSecondary,
-    background           = NeuBase,
-    surface              = NeuBase,
-    surfaceVariant       = NeuBase,
-    surfaceContainer     = NeuBase,
-    surfaceContainerHigh = NeuBase,
-    surfaceContainerLow  = NeuBase,
+    background           = BgBase,
+    surface              = CardBase,
+    surfaceVariant       = CardRaised,
+    surfaceContainer     = CardBase,
+    surfaceContainerHigh = CardRaised,
+    surfaceContainerLow  = BgBase,
     onBackground         = InkPrimary,
     onSurface            = InkPrimary,
     onSurfaceVariant     = InkSecondary,
@@ -28,8 +28,7 @@ private val MonAiColorScheme = lightColorScheme(
     error                = StatusError,
 )
 
-// Radius M3 Expressive tetap dipertahankan — cocok juga untuk neumorphism
-// (sudut lebih besar & lembut memperkuat kesan "empuk").
+// Shape M3 Expressive tetap dipertahankan — sudut besar & lembut.
 private val MonAiShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small      = RoundedCornerShape(14.dp),
