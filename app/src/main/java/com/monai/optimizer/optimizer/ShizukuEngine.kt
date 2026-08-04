@@ -1,11 +1,22 @@
 package com.monai.optimizer.optimizer
 
+import android.content.ComponentName
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.IBinder
 import android.util.Log
+import com.monai.optimizer.IShellUserService
 import rikka.shizuku.Shizuku
 
 data class SCmd(val success: Boolean, val output: String, val cmd: String)
 
+/**
+ * Eksekusi shell via Shizuku UserService — proses terpisah yang dijalankan
+ * Shizuku dengan UID shell/root beneran (bukan reflection ke
+ * Shizuku.newProcess yang sudah deprecated/hidden di versi Shizuku modern
+ * dan sering gagal dgn "method not visible" di banyak device).
+ * Lihat: ShellUserService.kt (proses yang benar-benar mengeksekusi command).
+ */
 object ShizukuEngine {
     private const val T = "ShizukuEngine"
     const val PERM_CODE = 1001
@@ -17,21 +28,67 @@ object ShizukuEngine {
 
     fun requestPerm() { try { Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {} }
 
-    @Suppress("DiscouragedPrivateApi", "UNCHECKED_CAST")
-    fun sh(cmd: String): SCmd = try {
-        val method = Class.forName("rikka.shizuku.Shizuku").getMethod(
-            "newProcess",
-            Array<String>::class.java,
-            Array<String>::class.java,
-            String::class.java
-        )
-        val p   = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
-        val out = p.inputStream.bufferedReader().readText().trim()
-        val err = p.errorStream.bufferedReader().readText().trim()
-        val rc  = p.waitFor()
-        Log.d(T, "[SHZ $rc] $cmd")
-        SCmd(rc == 0, out.ifEmpty { err }, cmd)
-    } catch (e: Throwable) { SCmd(false, e.message ?: "error", cmd) }
+    // ── UserService binding ──────────────────────────────────────────
+    @Volatile private var service: IShellUserService? = null
+    private val bindLock = Object()
+
+    private val userServiceArgs by lazy {
+        Shizuku.UserServiceArgs(ComponentName("com.monai.optimizer", ShellUserService::class.java.name))
+            .daemon(false)
+            .processNameSuffix("shell")
+            .debuggable(false)
+            .version(1)
+    }
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            synchronized(bindLock) {
+                service = if (binder != null && binder.pingBinder()) IShellUserService.Stub.asInterface(binder) else null
+                bindLock.notifyAll()
+            }
+            Log.d(T, "UserService connected: ${service != null}")
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            synchronized(bindLock) { service = null }
+        }
+    }
+
+    /** Blocking bind (dipanggil dari Dispatchers.IO, aman nunggu). Timeout 4 detik. */
+    private fun ensureBound(): IShellUserService? {
+        service?.let { return it }
+        if (!isRunning() || !hasPerm()) return null
+        synchronized(bindLock) {
+            service?.let { return it }
+            try {
+                Shizuku.bindUserService(userServiceArgs, connection)
+            } catch (e: Throwable) {
+                Log.e(T, "bindUserService failed", e)
+                return null
+            }
+            val deadline = System.currentTimeMillis() + 4000
+            while (service == null && System.currentTimeMillis() < deadline) {
+                try { bindLock.wait(200) } catch (_: InterruptedException) {}
+            }
+            return service
+        }
+    }
+
+    fun sh(cmd: String): SCmd {
+        val svc = ensureBound()
+            ?: return SCmd(false, "Shizuku service not available — pastikan app Shizuku berjalan & izin sudah diberikan", cmd)
+        return try {
+            val raw = svc.exec(cmd)
+            val sep = raw.indexOf('\u0001')
+            if (sep == -1) return SCmd(false, raw, cmd)
+            val code = raw.substring(0, sep).toIntOrNull() ?: -1
+            val out = raw.substring(sep + 1)
+            Log.d(T, "[SHZ $code] $cmd")
+            SCmd(code == 0, out, cmd)
+        } catch (e: Throwable) {
+            synchronized(bindLock) { service = null }  // proses mungkin mati, paksa rebind next call
+            SCmd(false, e.message ?: "error", cmd)
+        }
+    }
 
     // ── Profiles ──────────────────────────────────────────────────────
 

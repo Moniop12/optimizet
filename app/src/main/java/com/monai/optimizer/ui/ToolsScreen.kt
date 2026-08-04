@@ -123,7 +123,10 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             enabled = hasControl,
             isRunning = vm.runningTools["doze_mode"] == true
         ) {
-            vm.runTool(ctx, "doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") { ShizukuEngine.aggressiveDoze().first() }
+            vm.runTool(ctx, "doze_mode", "Aggressive Doze", "dumpsys deviceidle force-idle") {
+                val r = ShizukuEngine.aggressiveDoze()
+                com.monai.optimizer.optimizer.SCmd(r.all { it.success }, r.joinToString(" | ") { it.output }, r.joinToString(" && ") { it.cmd })
+            }
         }
 
         SectionLabel("DANGER ZONE")
