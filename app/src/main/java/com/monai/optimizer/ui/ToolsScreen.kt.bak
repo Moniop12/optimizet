@@ -213,8 +213,6 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
 }
 
 // ── COMPOSABLE BARU: Resolution & Density Tuner Card ────────────────
-// Modifikasi Composable ResolutionScalerCard di ToolsScreen.kt agar menggunakan dynamic scale:
-
 @Composable
 fun ResolutionScalerCard(vm: MainViewModel, enabled: Boolean) {
     AppCard {
@@ -222,38 +220,29 @@ fun ResolutionScalerCard(vm: MainViewModel, enabled: Boolean) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconBadge(Icons.Filled.AspectRatio, UtilityTeal, size = 34.dp, iconSize = 16.dp, active = enabled)
                 Column {
-                    Text("Resolution & Aspect-Ratio Scaler", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Skala Proposional: Presisi di semua rasio layar HP/Tablet tanpa kepotong",
-                        color = TextSecondary, style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Resolution & Density Scaler", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Change GPU rendering resolution for more stable FPS gaming", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             if (!enabled) {
                 Text("Requires Root or Shizuku permission", color = RedErr, fontSize = 10.sp)
             } else {
-                Text(
-                    "Resolusi Asli Layar: ${vm.nativeWidth}x${vm.nativeHeight} (${vm.nativeDensity} DPI)",
-                    color = TextTertiary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = vm.resolutionPreset == "NATIVE",
-                        onClick = { vm.applyDynamicResolutionScale("NATIVE", 1.0f) },
-                        label = { Text("Default (100%)", fontSize = 11.sp) }
+                        onClick = { vm.applyResolutionPreset("NATIVE", null, null) },
+                        label = { Text("Default", fontSize = 11.sp) }
                     )
                     FilterChip(
-                        selected = vm.resolutionPreset == "SCALE_75",
-                        onClick = { vm.applyDynamicResolutionScale("SCALE_75", 0.75f) },
-                        label = { Text("HD Scale (75%)", fontSize = 11.sp) }
+                        selected = vm.resolutionPreset == "720P",
+                        onClick = { vm.applyResolutionPreset("720P", "720x1600", 280) },
+                        label = { Text("720p (High FPS)", fontSize = 11.sp) }
                     )
                     FilterChip(
-                        selected = vm.resolutionPreset == "SCALE_60",
-                        onClick = { vm.applyDynamicResolutionScale("SCALE_60", 0.60f) },
-                        label = { Text("Performance (60%)", fontSize = 11.sp) }
+                        selected = vm.resolutionPreset == "1080P",
+                        onClick = { vm.applyResolutionPreset("1080P", "1080x2400", 400) },
+                        label = { Text("1080p (FHD+)", fontSize = 11.sp) }
                     )
                 }
             }

@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.util.DisplayMetrics
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.runtime.getValue
@@ -34,7 +33,6 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
 
 data class LogEntry(val time: String, val cmd: String, val success: Boolean)
 
@@ -79,14 +77,6 @@ class MainViewModel : ViewModel() {
     var resolutionPreset by mutableStateOf("NATIVE")
         private set
 
-    // ── DYNAMIC DISPLAY METRICS (Mencegah Layar Kepotong di Perangkat Lain) ──
-    var nativeWidth by mutableStateOf(1080)
-        private set
-    var nativeHeight by mutableStateOf(2400)
-        private set
-    var nativeDensity by mutableStateOf(400)
-        private set
-
     var showNotifRam by mutableStateOf(true)
         private set
     var showNotifCpu by mutableStateOf(true)
@@ -128,25 +118,9 @@ class MainViewModel : ViewModel() {
         wm?.defaultDisplay?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 90f
     } catch (_: Exception) { 90f }
 
-    @Suppress("DEPRECATION")
-    private fun readNativeDisplayMetrics(ctx: Context) {
-        try {
-            val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val metrics = DisplayMetrics()
-            wm.defaultDisplay.getRealMetrics(metrics)
-            if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
-                nativeWidth = metrics.widthPixels
-                nativeHeight = metrics.heightPixels
-                nativeDensity = metrics.densityDpi
-            }
-        } catch (_: Exception) {}
-    }
-
     fun init(ctx: Context) {
         appCtx = ctx.applicationContext
         RootEngine.init(ctx)
-        readNativeDisplayMetrics(ctx)
-
         if (!::prefsRepo.isInitialized) {
             prefsRepo = UserPreferencesRepository(ctx)
             observePreferences()
@@ -249,6 +223,7 @@ class MainViewModel : ViewModel() {
         ctx.startService(intent)
     }
 
+    // ── FITUR BARU LOGGING: Bypass Charging Toggle ───────────────────
     fun setBypassCharging(enabled: Boolean) {
         isBypassChargingEnabled = enabled
         viewModelScope.launch(Dispatchers.IO) {
@@ -263,34 +238,19 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ── PERBAIKAN DYNAMIC SCALER: Menghitung Rasio Proposional Tanpa Hardcode ──
-    fun applyDynamicResolutionScale(presetName: String, scaleFactor: Float) {
+    // ── FITUR BARU LOGGING: Resolution Preset Scaler ────────────────
+    fun applyResolutionPreset(preset: String, size: String?, density: Int?) {
         viewModelScope.launch(Dispatchers.IO) {
-            val cmdText: String = if (scaleFactor >= 1.0f || presetName == "NATIVE") {
-                "wm size reset && wm density reset"
-            } else {
-                // Pastikan nilai piksel genap agar Android SurfaceFlinger tidak error
-                var targetW = (nativeWidth * scaleFactor).roundToInt()
-                var targetH = (nativeHeight * scaleFactor).roundToInt()
-                var targetD = (nativeDensity * scaleFactor).roundToInt()
-
-                if (targetW % 2 != 0) targetW += 1
-                if (targetH % 2 != 0) targetH += 1
-
-                "wm size ${targetW}x${targetH} && wm density $targetD"
-            }
-
             val r: SCmd = if (hasRoot) {
-                val rootRes = RootEngine.su(cmdText)
+                val rootRes = RootEngine.su(if (size == null) "wm size reset && wm density reset" else "wm size $size && wm density $density")
                 SCmd(rootRes.success, rootRes.output, rootRes.cmd)
             } else {
-                ShizukuEngine.sh(cmdText)
+                ShizukuEngine.setResolutionPreset(size, density)
             }
-
-            prefsRepo.setResolutionPreset(presetName)
+            prefsRepo.setResolutionPreset(preset)
             withContext(Dispatchers.Main) {
-                resolutionPreset = presetName
-                statusMsg = if (r.success) "Resolution scaled to $presetName (${(scaleFactor * 100).toInt()}%)" else "Failed to scale resolution"
+                resolutionPreset = preset
+                statusMsg = if (r.success) "Resolution preset set to $preset" else "Failed to set resolution"
                 statusSuccess = r.success
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
@@ -313,7 +273,7 @@ class MainViewModel : ViewModel() {
                 val status = if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled"
                 statusMsg = status
                 statusSuccess = r.success
-                postNotifLogMsg(ctx, "⚡ $status")
+                postNotifLogMsg(ctx, "✨ $status")
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
