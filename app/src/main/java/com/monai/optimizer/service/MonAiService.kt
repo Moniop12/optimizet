@@ -442,7 +442,7 @@ class MonAiService : Service() {
         )
 
         // Jika ada log sementara (saat jalankan fitur), tampilkan log di judul
-        val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == "MonAi") "MonAi • Dashboard Active" else "MonAi • ${focus.appLabel}"
+        val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == "MonProject") "MonProject • Dashboard Active" else "MonProject • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
 
@@ -550,7 +550,7 @@ class MonAiService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "MonAi Live Service",
+                CHANNEL_ID, "MonProject Live Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply { description = "System Engine & Battery Monitor" }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

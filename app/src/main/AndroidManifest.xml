@@ -29,7 +29,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Registered MonAi Foreground Live Notification Service -->
+        <!-- Registered MonProject Foreground Live Notification Service -->
         <service
             android:name=".service.MonAiService"
             android:enabled="true"

@@ -6,10 +6,10 @@ import androidx.compose.ui.graphics.Color
 // (bukan putih rata) — supaya kartu tetap "elevated"/beda dari
 // background walau shadow-nya tipis. Kebalikan dari dark theme (di situ
 // kartu lebih TERANG dari bg, di sini kartu lebih PUTIH/BERSIH dari bg). ──
-val BgBase      = Color(0xFFF1F2F6)  // background
-val CardBase    = Color(0xFFFFFFFF)  // kartu level 1 — putih penuh
-val CardRaised  = Color(0xFFEDEEF3)  // elemen nested (chip terpilih, badge tidak aktif)
-val CardShadow  = Color(0x1F2A2E3D)  // shadow lembut, cukup kelihatan di atas terang
+val BgBase      = Color(0xFFE4E6EC)  // background — diturunin dari #F1F2F6, biar gak nyolok
+val CardBase    = Color(0xFFF8F9FB)  // kartu level 1 — off-white, bukan putih 100%
+val CardRaised  = Color(0xFFE9EAF0)  // elemen nested (chip terpilih, badge tidak aktif)
+val CardShadow  = Color(0x262A2E3D)  // shadow lembut, dinaikin dikit biar tetap kerasa di atas bg yg lebih gelap
 
 // Highlight gloss nggak begitu perlu di tema terang (kartu udah putih),
 // jadi dibikin nyaris transparan — biar nggak nambah elemen yang gak perlu.

@@ -76,7 +76,7 @@ fun HomeScreen(vm: MainViewModel) {
                 }
                 Column {
                     Text(
-                        "MonAi",
+                        "MonProject",
                         style = MaterialTheme.typography.headlineSmall.copy(
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold

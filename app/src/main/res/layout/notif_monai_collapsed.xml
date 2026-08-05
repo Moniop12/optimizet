@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="MonAi • Focus App"
+            android:text="MonProject • Focus App"
             android:textColor="@color/notif_title_color"
             android:textStyle="bold"
             android:textSize="13sp"

@@ -472,7 +472,7 @@ class MainViewModel : ViewModel() {
         if (log.isEmpty()) return
         val text = log.joinToString("\n") { "[${it.time}] [${if (it.success) "OK" else "FAIL"}] ${it.cmd}" }
         val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("MonAi Logs", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("MonProject Logs", text))
         Toast.makeText(ctx, "Logs copied to clipboard!", Toast.LENGTH_SHORT).show()
     }
 
