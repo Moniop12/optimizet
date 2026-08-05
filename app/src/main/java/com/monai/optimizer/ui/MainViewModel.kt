@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -105,7 +106,19 @@ class MainViewModel : ViewModel() {
     private var isPrefsSyncRunning = false
     private lateinit var prefsRepo: UserPreferencesRepository
 
+    private var appCtx: Context? = null
+
+    /** Refresh rate tertinggi yang device dukung — dipakai Smooth UI &
+     *  profile Performance/Balanced biar refresh rate dipush maksimal.
+     *  Fallback 90f kalau gagal query (device lawas/API terbatas). */
+    @Suppress("DEPRECATION")
+    private fun maxRefreshRate(): Float = try {
+        val wm = appCtx?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        wm?.defaultDisplay?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 90f
+    } catch (_: Exception) { 90f }
+
     fun init(ctx: Context) {
+        appCtx = ctx.applicationContext
         RootEngine.init(ctx)
         if (!::prefsRepo.isInitialized) {
             prefsRepo = UserPreferencesRepository(ctx)
@@ -212,12 +225,13 @@ class MainViewModel : ViewModel() {
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setAiOptimizerEnabled(aiOptimizerEnabled)
+            val hz = maxRefreshRate()
             when {
-                hasRoot -> RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled)
-                hasShizuku -> ShizukuEngine.setAnimScale(if (aiOptimizerEnabled) 0.5f else 1.0f)
+                hasRoot -> RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
+                hasShizuku -> ShizukuEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
             }
             withContext(Dispatchers.Main) {
-                val scopeNote = if (!hasRoot && hasShizuku) " (Shizuku: anim speed only)" else ""
+                val scopeNote = if (!hasRoot && hasShizuku) " (Shizuku: anim, refresh rate & blur — GPU render tweak needs root)" else ""
                 val status = (if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled") + scopeNote
                 postNotifLogMsg(ctx, "⚡ $status")
             }
@@ -323,15 +337,16 @@ class MainViewModel : ViewModel() {
                 statusSuccess = null
             }
 
+            val hz = maxRefreshRate()
             val rootCmds: List<CmdResult> = if (hasRoot) when (profile) {
-                OptProfile.PERFORMANCE -> RootEngine.applyPerformance()
-                OptProfile.BALANCED -> RootEngine.applyBalanced()
+                OptProfile.PERFORMANCE -> RootEngine.applyPerformance(hz)
+                OptProfile.BALANCED -> RootEngine.applyBalanced(hz)
                 OptProfile.BATTERY -> RootEngine.applyBattery()
             } else emptyList()
 
             val shzCmds: List<SCmd> = if (hasShizuku && !hasRoot) when (profile) {
-                OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance()
-                OptProfile.BALANCED -> ShizukuEngine.applyBalanced()
+                OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance(hz)
+                OptProfile.BALANCED -> ShizukuEngine.applyBalanced(hz)
                 OptProfile.BATTERY -> ShizukuEngine.applyBattery()
             } else emptyList()
 

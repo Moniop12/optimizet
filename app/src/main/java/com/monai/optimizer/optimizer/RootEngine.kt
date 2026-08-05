@@ -116,7 +116,7 @@ object RootEngine {
 
     // ── Smooth UI & Rendering Engine (Combined Animation Scaling) ────
 
-    fun applySmoothRenderingTweaks(enable: Boolean): CmdResult {
+    fun applySmoothRenderingTweaks(enable: Boolean, maxRefreshRate: Float = 90f): CmdResult {
         return if (enable) {
             su(
                 "setprop debug.sf.latch_unsignaled 1; " +
@@ -124,7 +124,11 @@ object RootEngine {
                 "setprop view.scroll_friction 0.005; " +
                 "settings put global window_animation_scale 0.5; " +
                 "settings put global transition_animation_scale 0.5; " +
-                "settings put global animator_duration_scale 0.5"
+                "settings put global animator_duration_scale 0.5; " +
+                "settings put system peak_refresh_rate $maxRefreshRate; " +
+                "settings put system min_refresh_rate $maxRefreshRate; " +
+                "settings put global disable_window_blurs 1; " +
+                "settings put global accessibility_reduce_transparency 1"
             )
         } else {
             su(
@@ -133,31 +137,47 @@ object RootEngine {
                 "setprop view.scroll_friction 0.015; " +
                 "settings put global window_animation_scale 1.0; " +
                 "settings put global transition_animation_scale 1.0; " +
-                "settings put global animator_duration_scale 1.0"
+                "settings put global animator_duration_scale 1.0; " +
+                "settings delete system peak_refresh_rate; " +
+                "settings delete system min_refresh_rate; " +
+                "settings put global disable_window_blurs 0; " +
+                "settings put global accessibility_reduce_transparency 0"
             )
         }
     }
 
+    // ── AppOps: batasi aktivitas background app pihak-3 (bukan sistem) ──
+    // appops ini command shell biasa, jalan di root maupun Shizuku, gak
+    // butuh privilese kernel apapun.
+    fun restrictBackground(): CmdResult = su(
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+        "appops set \$pkg RUN_IN_BACKGROUND ignore; " +
+        "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; " +
+        "done; echo done"
+    )
+
     // ── Profiles ──────────────────────────────────────────────────────
 
-    fun applyPerformance(): List<CmdResult> {
+    fun applyPerformance(maxRefreshRate: Float = 90f): List<CmdResult> {
         val avail = getGovernors()
         val targetGov = if (avail.contains("performance")) "performance" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
-            applySmoothRenderingTweaks(true),
+            applySmoothRenderingTweaks(true, maxRefreshRate),
+            su("cmd power set-fixed-performance-mode-enabled true"),
             su("sysctl -w vm.swappiness=10"),
             su("sysctl -w vm.dirty_ratio=30"),
             su("sysctl -w vm.vfs_cache_pressure=50")
         )
     }
 
-    fun applyBalanced(): List<CmdResult> {
+    fun applyBalanced(maxRefreshRate: Float = 90f): List<CmdResult> {
         val avail = getGovernors()
         val targetGov = if (avail.contains("schedutil")) "schedutil" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
-            applySmoothRenderingTweaks(true),
+            applySmoothRenderingTweaks(true, maxRefreshRate),
+            su("cmd power set-fixed-performance-mode-enabled false"),
             su("sysctl -w vm.swappiness=30"),
             su("sysctl -w vm.dirty_ratio=20"),
             su("sysctl -w vm.vfs_cache_pressure=80")
@@ -170,6 +190,7 @@ object RootEngine {
         return listOf(
             setGovernor(targetGov),
             applySmoothRenderingTweaks(false),
+            su("cmd power set-fixed-performance-mode-enabled false"),
             su("sysctl -w vm.swappiness=60"),
             su("sysctl -w vm.dirty_ratio=10"),
             su("dumpsys deviceidle force-idle 2>/dev/null || true")
@@ -193,6 +214,7 @@ object RootEngine {
         return listOf(
             setGovernor(defaultGov),
             applySmoothRenderingTweaks(false),
+            su("cmd power set-fixed-performance-mode-enabled false"),
             su("sysctl -w vm.swappiness=$swappiness"),
             su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),

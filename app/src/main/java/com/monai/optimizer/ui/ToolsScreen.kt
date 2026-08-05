@@ -66,6 +66,20 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             onClick = onOpenCharging
         )
 
+        ToolActionRow(
+            icon = Icons.Filled.HourglassEmpty,
+            title = "Restrict Background Activity",
+            desc = "appops: batasi RUN_IN_BACKGROUND app pihak-3",
+            accent = EmeraldGlow,
+            enabled = hasControl,
+            isRunning = vm.runningTools["restrict_bg"] == true
+        ) {
+            vm.runTool(
+                ctx, "restrict_bg", "Restrict Background Activity",
+                "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg RUN_IN_BACKGROUND ignore; appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; done; echo done"
+            ) { ShizukuEngine.restrictBackground() }
+        }
+
         SectionLabel("CPU & MEMORY TUNER")
         GovernorCard(vm)
 

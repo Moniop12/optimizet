@@ -536,7 +536,7 @@ class MonAiService : Service() {
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setCustomContentView(viewsCollapsed)
             .setCustomBigContentView(viewsExpanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())

@@ -91,19 +91,32 @@ object ShizukuEngine {
     }
 
     // ── Profiles ──────────────────────────────────────────────────────
+    // Refresh rate, disable blur, dan Fixed Performance Mode SEMUA cuma
+    // command shell biasa (settings put / cmd power) — genuinely jalan
+    // tanpa root, jadi ditaruh di sini juga (bukan cuma root-only).
 
-    fun applyPerformance(): List<SCmd> = listOf(
+    fun applyPerformance(maxRefreshRate: Float = 90f): List<SCmd> = listOf(
         sh("settings put global window_animation_scale 0.5"),
         sh("settings put global transition_animation_scale 0.5"),
         sh("settings put global animator_duration_scale 0.5"),
+        sh("settings put system peak_refresh_rate $maxRefreshRate"),
+        sh("settings put system min_refresh_rate $maxRefreshRate"),
+        sh("settings put global disable_window_blurs 1"),
+        sh("settings put global accessibility_reduce_transparency 1"),
+        sh("cmd power set-fixed-performance-mode-enabled true"),
         sh("settings put global background_process_limit 6"),
         sh("settings put global wifi_scan_throttle_enabled 1")
     )
 
-    fun applyBalanced(): List<SCmd> = listOf(
+    fun applyBalanced(maxRefreshRate: Float = 90f): List<SCmd> = listOf(
         sh("settings put global window_animation_scale 1.0"),
         sh("settings put global transition_animation_scale 1.0"),
         sh("settings put global animator_duration_scale 1.0"),
+        sh("settings put system peak_refresh_rate $maxRefreshRate"),
+        sh("settings put system min_refresh_rate $maxRefreshRate"),
+        sh("settings put global disable_window_blurs 1"),
+        sh("settings put global accessibility_reduce_transparency 1"),
+        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings put global background_process_limit 5")
     )
 
@@ -111,8 +124,21 @@ object ShizukuEngine {
         sh("settings put global window_animation_scale 0"),
         sh("settings put global transition_animation_scale 0"),
         sh("settings put global animator_duration_scale 0"),
+        sh("settings delete system peak_refresh_rate"),
+        sh("settings delete system min_refresh_rate"),
+        sh("settings put global disable_window_blurs 0"),
+        sh("settings put global accessibility_reduce_transparency 0"),
+        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings put global background_process_limit 3"),
         sh("dumpsys deviceidle force-idle")
+    )
+
+    // ── AppOps: batasi aktivitas background app pihak-3 ─────────────────
+    fun restrictBackground(): SCmd = sh(
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+        "appops set \$pkg RUN_IN_BACKGROUND ignore; " +
+        "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; " +
+        "done; echo done"
     )
 
     // ── Fixed Trim Memory Engine ──────────────────────────────────────
@@ -135,11 +161,36 @@ object ShizukuEngine {
         "settings put global animator_duration_scale $s"
     )
 
+    /** Dipakai toggle "Smooth UI" di Home — scope Shizuku sekarang lebih
+     *  luas dari sekadar anim scale: refresh rate & disable blur juga
+     *  genuinely jalan tanpa root. Yang TETAP root-only cuma setprop
+     *  SurfaceFlinger/Skia internal (RootEngine.applySmoothRenderingTweaks). */
+    fun applySmoothRenderingTweaks(enable: Boolean, maxRefreshRate: Float = 90f): SCmd {
+        return if (enable) sh(
+            "settings put global window_animation_scale 0.5 && " +
+            "settings put global transition_animation_scale 0.5 && " +
+            "settings put global animator_duration_scale 0.5 && " +
+            "settings put system peak_refresh_rate $maxRefreshRate && " +
+            "settings put system min_refresh_rate $maxRefreshRate && " +
+            "settings put global disable_window_blurs 1 && " +
+            "settings put global accessibility_reduce_transparency 1"
+        ) else sh(
+            "settings put global window_animation_scale 1.0 && " +
+            "settings put global transition_animation_scale 1.0 && " +
+            "settings put global animator_duration_scale 1.0 && " +
+            "settings delete system peak_refresh_rate && " +
+            "settings delete system min_refresh_rate && " +
+            "settings put global disable_window_blurs 0 && " +
+            "settings put global accessibility_reduce_transparency 0"
+        )
+    }
+
     // ── Reset (scope terbatas — cuma yg genuinely bisa Shizuku sentuh) ──
     // TIDAK bisa reset governor/sysctl kernel (butuh root beneran, sysfs
     // /proc read-only buat shell UID). Jangan diklaim "full reset".
     fun resetToDefaults(): List<SCmd> = listOf(
-        setAnimScale(1.0f),
+        applySmoothRenderingTweaks(false),
+        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings delete global background_process_limit"),
         sh("dumpsys deviceidle disable")
     )

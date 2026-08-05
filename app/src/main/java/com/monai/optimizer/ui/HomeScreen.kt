@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.monai.optimizer.R
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.monai.optimizer.optimizer.OptProfile
@@ -65,15 +69,14 @@ fun HomeScreen(vm: MainViewModel) {
             Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier
+                Image(
+                    painter = painterResource(R.drawable.ic_app_logo),
+                    contentDescription = null,
+                    modifier = Modifier
                         .size(38.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Speed, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
+                        .clip(RoundedCornerShape(11.dp)),
+                    contentScale = ContentScale.Crop
+                )
                 Column {
                     Text(
                         "MonProject",
