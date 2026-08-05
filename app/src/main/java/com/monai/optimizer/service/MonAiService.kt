@@ -188,7 +188,7 @@ class MonAiService : Service() {
 
     private fun triggerNotificationRefresh() {
         scope.launch {
-            val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot())
+            val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot(), ShizukuEngine.isRunning() && ShizukuEngine.hasPerm())
             val bat = getBatteryPowerInfo(this@MonAiService)
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), bat))
@@ -211,7 +211,8 @@ class MonAiService : Service() {
         scope.launch {
             while (isActive && isRunning) {
                 val hasRoot = RootEngine.hasRoot()
-                val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot)
+                val hasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
+                val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShizuku)
                 val cpuFreq = if (hasRoot) RootEngine.getCpuFreqInfo() else "--"
                 val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
@@ -272,13 +273,13 @@ class MonAiService : Service() {
         }
     }
 
-    private fun getFocusedAppInfo(ctx: Context, hasRoot: Boolean): AppFocusInfo {
+    private fun getFocusedAppInfo(ctx: Context, hasRoot: Boolean, hasShizuku: Boolean): AppFocusInfo {
         getFocusedAppViaUsageStats(ctx)?.let {
             lastFocusInfo = it
             return it
         }
 
-        if (!hasRoot) return AppFocusInfo("System Active", null, 0L)
+        if (!hasRoot && !hasShizuku) return AppFocusInfo("System Active", null, 0L)
 
         dumpsysPollTick++
         if (dumpsysPollTick < DUMPSYS_POLL_EVERY) {
@@ -286,7 +287,7 @@ class MonAiService : Service() {
         }
         dumpsysPollTick = 0
 
-        val fresh = getFocusedAppViaDumpsys(ctx)
+        val fresh = if (hasRoot) getFocusedAppViaDumpsys(ctx) else getFocusedAppViaShizuku(ctx)
         lastFocusInfo = fresh
         return fresh
     }
@@ -335,6 +336,34 @@ class MonAiService : Service() {
                 if (cleanPkg.isNotBlank() && cleanPkg.contains(".")) {
                     val appRam = getAppRamMb(cleanPkg, useRoot = true)
                     return AppFocusInfo(labelFor(ctx, cleanPkg), cleanPkg, appRam)
+                }
+            }
+        } catch (_: Exception) {}
+        return AppFocusInfo("Home Screen", null, 0L)
+    }
+
+    /** Cermin dari getFocusedAppViaDumpsys tapi lewat Shizuku UserService —
+     *  dumpsys window itu command shell biasa, genuinely jalan tanpa root.
+     *  Sebelumnya cuma ada jalur root, makanya Shizuku-only user selalu
+     *  keliatan "System Active" pas Usage Access belum di-grant. */
+    private fun getFocusedAppViaShizuku(ctx: Context): AppFocusInfo {
+        try {
+            val r = ShizukuEngine.sh("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+            if (r.success && r.output.isNotBlank()) {
+                val raw = r.output
+                val pkg = when {
+                    raw.contains("/") -> {
+                        val beforeSlash = raw.substringBefore("/")
+                        if (beforeSlash.contains(" ")) beforeSlash.split(" ").last() else beforeSlash
+                    }
+                    else -> ""
+                }
+                val cleanPkg = pkg.replace("{", "").replace("}", "").trim()
+                if (cleanPkg.isNotBlank() && cleanPkg.contains(".")) {
+                    // RAM per-app butuh baca /proc/<pid>/status — itu masih
+                    // root-only (SELinux blokir shell UID baca proc app lain),
+                    // jadi lewat Shizuku RAM app-nya ditampilkan 0 (fallback "System").
+                    return AppFocusInfo(labelFor(ctx, cleanPkg), cleanPkg, 0L)
                 }
             }
         } catch (_: Exception) {}
@@ -496,10 +525,11 @@ class MonAiService : Service() {
             setTextViewText(R.id.txt_exp_app_title, displayTitle)
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
 
-            // View.GONE: HILANG TOTAL jika di-OFF-kan
-            setViewVisibility(R.id.txt_exp_ram_val, if (showNotifRam) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.txt_exp_cpu_val, if (showNotifCpu) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.txt_exp_power_val, if (showNotifPower) View.VISIBLE else View.GONE)
+            // View.GONE: HILANG TOTAL jika di-OFF-kan — kena seluruh chip
+            // container (termasuk label "APP RAM" dll), bukan cuma value-nya.
+            setViewVisibility(R.id.chip_ram, if (showNotifRam) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.chip_cpu, if (showNotifCpu) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.chip_power, if (showNotifPower) View.VISIBLE else View.GONE)
 
             if (showNotifRam) setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
             if (showNotifCpu) setTextViewText(R.id.txt_exp_cpu_val, "$cpuFreq ($cpuTemp)")

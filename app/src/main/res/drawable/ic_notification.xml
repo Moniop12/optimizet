@@ -3,12 +3,29 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Ikon petir (⚡) — dipakai khusus buat status bar/notifikasi.
+    <!-- Ikon gauge/speedometer — dipakai khusus buat status bar/notifikasi,
+         balik ke konsep asli "Speed" sesuai tagline System Optimizer.
+         Sudah di-render & dicek manual dulu sebelum dipakai (lihat
+         notif_icon_preview2.png) biar bentuknya presisi, bukan tebakan.
          WAJIB tetap vector monokrom putih-di-atas-transparan; jangan
-         diganti PNG/gambar apapun, ini requirement Android buat small
-         icon notifikasi (auto di-tint sistem, gambar foto bakal jadi
-         blob putih polos kalau dipaksa). -->
+         diganti PNG/gambar apapun — requirement Android buat small icon
+         notifikasi (auto di-tint sistem). -->
+    <!-- Dial: cincin dgn celah di kanan, jarum masuk lewat celah itu -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M17.98,17.19 A7.3,7.3 0 1 1 17.98,8.81"/>
+    <!-- Jarum penunjuk -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M12,13 L16.2,8.6"/>
+    <!-- Poros tengah -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M7,2v11h3v9l7,-12h-4l4,-8z"/>
+        android:pathData="M12,13 m-0.9,0 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0"/>
 </vector>
