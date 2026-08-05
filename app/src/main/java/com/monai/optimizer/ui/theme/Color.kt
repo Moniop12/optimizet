@@ -2,49 +2,49 @@ package com.monai.optimizer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ── Dasar gelap — bukan hitam pekat rata (biar nggak "mati"/cyber),
-// kartu dibuat SATU TINGKAT lebih terang dari background supaya beda
-// jelas cuma dari tone-nya (bukan cuma shadow tipis yang gampang
-// hilang di atas gelap — shadow emang kurang kelihatan di dark mode).
-val BgBase      = Color(0xFF121317)  // background
-val CardBase    = Color(0xFF1C1E24)  // kartu level 1
-val CardRaised  = Color(0xFF262932)  // elemen nested (chip terpilih, badge tidak aktif)
-val CardShadow  = Color(0x66000000)  // shadow tipis, cuma buat nambah kedalaman
+// ── Dasar terang. Kartu dibuat PUTIH PENUH, background sedikit abu-abu
+// (bukan putih rata) — supaya kartu tetap "elevated"/beda dari
+// background walau shadow-nya tipis. Kebalikan dari dark theme (di situ
+// kartu lebih TERANG dari bg, di sini kartu lebih PUTIH/BERSIH dari bg). ──
+val BgBase      = Color(0xFFF1F2F6)  // background
+val CardBase    = Color(0xFFFFFFFF)  // kartu level 1 — putih penuh
+val CardRaised  = Color(0xFFEDEEF3)  // elemen nested (chip terpilih, badge tidak aktif)
+val CardShadow  = Color(0x1F2A2E3D)  // shadow lembut, cukup kelihatan di atas terang
 
-// Highlight tipis di tepi atas kartu → kesan "mengkilap" ala M3 Expressive,
-// tanpa border tebal atau glow warna.
-val GlossHighlight = Color(0x14FFFFFF)
-val GlossFade      = Color(0x00000000)
+// Highlight gloss nggak begitu perlu di tema terang (kartu udah putih),
+// jadi dibikin nyaris transparan — biar nggak nambah elemen yang gak perlu.
+val GlossHighlight = Color(0x00FFFFFF)
+val GlossFade      = Color(0x00FFFFFF)
 
-// Teks & ikon di atas kartu gelap
-val InkPrimary   = Color(0xFFF3F4F6)  // hampir putih
-val InkSecondary = Color(0xFFA1A6B3)
-val InkTertiary  = Color(0xFF767C8A)
-val InkDisabled  = Color(0xFF454956)
+// Teks & ikon di atas kartu putih
+val InkPrimary   = Color(0xFF15161C)  // hampir hitam
+val InkSecondary = Color(0xFF676D7A)
+val InkTertiary  = Color(0xFF9AA1AE)
+val InkDisabled  = Color(0xFFC8CBD4)
 
-val HairlineBorder     = Color(0x14FFFFFF)
-val GlassBorderStrong  = Color(0x26FFFFFF)
+val HairlineBorder     = Color(0x14000000)
+val GlassBorderStrong  = Color(0x28000000)
 
-// Accent utama (brand/interaktif) — dinaikkan sedikit terangnya dari versi
-// terang biar tetap nyala jelas di atas dasar gelap, tapi masih desaturated
-// (bukan indigo neon).
-val Accent      = Color(0xFF8291FF)
-val AccentMuted = Color(0xFF2E3466)
-val OnAccent    = Color(0xFF11121A)
+// Accent utama (brand/interaktif) — dipekatin dari versi dark biar tetap
+// kontras di atas putih (warna pastel/cerah pudar kalau ditaruh gitu aja
+// di background terang, itu masalah yg sama kayak neumorphic dulu).
+val Accent      = Color(0xFF4C5FE0)
+val AccentMuted = Color(0xFFE3E5FB)
+val OnAccent    = Color(0xFFFFFFFF)
 
-val StatusError = Color(0xFFFF6B76)  // dinaikin dari #E0808A — sebelumnya kalah kontras
-val StatusWarn  = Color(0xFFFFB870)
-val StatusOk    = Color(0xFF4CD888)
+val StatusError = Color(0xFFE0313F)
+val StatusWarn  = Color(0xFFC97A1E)
+val StatusOk    = Color(0xFF12A15C)
 
 // ── Warna kontekstual per fitur — dipakai HANYA di ikon (bukan seluruh
-// kartu), disesuaikan biar tetap kebaca jelas di atas kartu gelap. Tiap
-// kategori fitur dapat 1 warna beda, jadi nggak numpuk semua di biru. ──
-val BatteryGreen  = Color(0xFF4CD888)  // baterai, root, status "aktif/aman" — dinaikin dari #6FCB94
-val PerfOrange    = Color(0xFFFFA24C)  // performa/CPU, panas/thermal — dinaikin dari #E8A365
-val MemoryBlue    = Color(0xFF8291FF)  // RAM & notifikasi (= Accent) — sedikit lebih cerah
-val CleanPurple   = Color(0xFFB37FFF)  // cache/cleaning — dinaikin dari #B98CE0
-val UtilityTeal   = Color(0xFF33D6CE)  // tools sistem/ADB — dinaikin dari #5FC7C2
-val DangerRed     = Color(0xFFFF6B76)  // reset/hapus permanen (= StatusError)
+// kartu). Sama makna dgn versi dark, cuma nilainya dipekatin buat kontras
+// di atas putih. ──
+val BatteryGreen  = Color(0xFF12A15C)  // baterai, root, status "aktif/aman"
+val PerfOrange    = Color(0xFFDB7A1E)  // performa/CPU, panas/thermal
+val MemoryBlue    = Color(0xFF4C5FE0)  // RAM & notifikasi (= Accent)
+val CleanPurple   = Color(0xFF8C4FE0)  // cache/cleaning
+val UtilityTeal   = Color(0xFF0FA79E)  // tools sistem/ADB
+val DangerRed     = Color(0xFFE0313F)  // reset/hapus permanen (= StatusError)
 
 // ─────────────────────────────────────────────────────────────────
 val CyanGlow    = MemoryBlue
@@ -80,7 +80,7 @@ val White20     = InkDisabled
 val Ink1        = BgBase
 val Ink2        = CardBase
 val Ink3        = CardRaised
-val Ink4        = Color(0xFF31353F)
+val Ink4        = Color(0xFFDCDEE6)
 val PureBlack   = Color(0xFF000000)
 val NeuLightShadow = Color(0xFFFFFFFF)
 val NeuDarkShadow  = Color(0xFF000000)
