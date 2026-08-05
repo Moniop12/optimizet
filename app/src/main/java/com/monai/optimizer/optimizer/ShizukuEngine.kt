@@ -181,4 +181,44 @@ object ShizukuEngine {
         sh("settings delete global background_process_limit"),
         sh("dumpsys deviceidle disable")
     )
+
+    // ── App Freezer ───────────────────────────────────────────────────
+    // Menggunakan `pm suspend/unsuspend` — aman & reversible, tidak perlu
+    // root. Bekerja di Shizuku biasa maupun Shizuku+ (ADB shell level).
+
+    /**
+     * Suspend (freeze) satu package.
+     * Efek: icon abu-abu, tidak bisa dibuka, semua background activity berhenti.
+     */
+    fun suspendApp(pkg: String): SCmd =
+        sh("pm suspend --user 0 $pkg 2>/dev/null && echo frozen || echo failed")
+
+    /**
+     * Unsuspend (unfreeze) satu package.
+     */
+    fun unsuspendApp(pkg: String): SCmd =
+        sh("pm unsuspend --user 0 $pkg 2>/dev/null && echo active || echo failed")
+
+    /**
+     * Kembalikan set package name yang sedang di-suspend.
+     * Output `pm list packages -s`: "package:com.example.app"
+     */
+    fun listSuspendedPkgs(): Set<String> {
+        val raw = sh("pm list packages -s 2>/dev/null").output
+        return raw.lines()
+            .filter { it.startsWith("package:") }
+            .map { it.removePrefix("package:").trim() }
+            .toSet()
+    }
+
+    /**
+     * Kembalikan set package name yang di-disable via pm disable-user.
+     */
+    fun listDisabledPkgs(): Set<String> {
+        val raw = sh("pm list packages -d 2>/dev/null").output
+        return raw.lines()
+            .filter { it.startsWith("package:") }
+            .map { it.removePrefix("package:").trim() }
+            .toSet()
+    }
 }

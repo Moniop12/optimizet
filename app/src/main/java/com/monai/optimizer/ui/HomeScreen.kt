@@ -218,12 +218,44 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     )
                 }
 
+                // ── CPU Usage % — works for ALL (root/Shizuku/none) ───────────
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    val cpuColor = when {
+                        vm.cpuUsagePct > 85 -> RedErr
+                        vm.cpuUsagePct > 60 -> AmberWarn
+                        else               -> EmeraldGlow
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        Text("CPU Usage", color = TextTertiary, style = MaterialTheme.typography.labelSmall)
+                        Text("${vm.cpuUsagePct}%", color = cpuColor, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                    }
+                    LinearProgressIndicator(
+                        progress = { vm.cpuUsagePct / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color     = cpuColor,
+                        trackColor = AppSurfaceVariant
+                    )
+                }
+
+                // ── CPU Freq, Temp, Governor — root + partial Shizuku ─────────
                 if (s.hasRoot) {
+                    // Full row: freq/temp from kernel, ZRAM, governor
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         StatBlock("CPU FREQ", vm.cpuFreq)
-                        StatBlock("TEMP", vm.cpuTemp)
-                        StatBlock("ZRAM", vm.zramInfo)
+                        StatBlock("TEMP",     vm.cpuTemp)
+                        StatBlock("ZRAM",     vm.zramInfo)
                         StatBlock("GOVERNOR", vm.currentGov)
+                    }
+                } else if (s.hasShizuku) {
+                    // Shizuku/non-root: freq & temp dari sysfs (MonitorEngine)
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        StatBlock("CPU FREQ", vm.cpuFreq)
+                        StatBlock("TEMP",     vm.cpuTemp)
+                        StatBlock("RAM FREE", "${vm.liveAvailRamMb} MB")
+                        StatBlock("MODE",     "ADB")
                     }
                 }
             } else {

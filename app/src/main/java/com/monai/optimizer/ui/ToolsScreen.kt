@@ -23,7 +23,7 @@ import com.monai.optimizer.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
+fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: () -> Unit = {}) {
     val ctx = LocalContext.current
     val hasControl = vm.hasRoot || vm.hasShizuku
     var showNotifSheet by remember { mutableStateOf(false) }
@@ -65,6 +65,19 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
                        else if (vm.isChargeLimitEnabled) "Limit ${vm.chargeLimitPct.toInt()}% · ${vm.chargeSpeedMa} mA"
                        else "Charge control idle",
             onClick = onOpenCharging
+        )
+
+        SectionLabel("APP MANAGEMENT")
+
+        // ── App Freezer Entry ────────────────────────────────────────────────
+        NavSummaryCard(
+            icon     = Icons.Filled.AcUnit,
+            accent   = CleanPurple,
+            title    = "System App Freezer",
+            subtitle = if (!hasControl) "Requires Shizuku or Root"
+                       else if (vm.freezerApps.isEmpty()) "Suspend apps to stop all background activity"
+                       else "${vm.freezerApps.count { it.isLocked }} frozen · ${vm.freezerApps.size} total apps",
+            onClick  = onOpenFreezer
         )
 
         // ── FITUR BARU: App Standby Buckets Manager ─────────────────────────

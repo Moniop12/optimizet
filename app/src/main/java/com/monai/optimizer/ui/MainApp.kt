@@ -59,14 +59,16 @@ fun MainApp(vm: MainViewModel) {
     val pagerState = rememberPagerState(pageCount = { screens.size })
     val scope = rememberCoroutineScope()
     var showCharging by remember { mutableStateOf(false) }
+    var showFreezer  by remember { mutableStateOf(false) }
 
     BackHandler(enabled = showCharging) { showCharging = false }
+    BackHandler(enabled = showFreezer && !showCharging) { showFreezer = false }
 
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            // Hide the bottom bar while the Charging detail screen is open, for a focused feel.
-            if (!showCharging) {
+            // Hide the bottom bar while detail screens are open, for a focused feel.
+            if (!showCharging && !showFreezer) {
                 NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
                     screens.forEachIndexed { index, s ->
                         NavigationBarItem(
@@ -102,7 +104,11 @@ fun MainApp(vm: MainViewModel) {
             ) { page ->
                 when (screens[page]) {
                     Screen.Home  -> HomeScreen(vm)
-                    Screen.Tools -> ToolsScreen(vm, onOpenCharging = { showCharging = true })
+                    Screen.Tools -> ToolsScreen(
+                        vm,
+                        onOpenCharging = { showCharging = true },
+                        onOpenFreezer  = { showFreezer  = true }
+                    )
                     Screen.Log   -> LogScreen(vm)
                 }
             }
@@ -113,6 +119,14 @@ fun MainApp(vm: MainViewModel) {
                 exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
             ) {
                 ChargingScreen(vm, onBack = { showCharging = false })
+            }
+
+            AnimatedVisibility(
+                visible = showFreezer,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                FreezerScreen(vm, onBack = { showFreezer = false })
             }
         }
     }

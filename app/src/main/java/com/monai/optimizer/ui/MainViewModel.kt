@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.DisplayMetrics
 import android.view.WindowManager
@@ -21,6 +23,8 @@ import com.monai.optimizer.optimizer.ChargingEngine
 import com.monai.optimizer.optimizer.CmdResult
 import com.monai.optimizer.optimizer.DeviceAnalyzer
 import com.monai.optimizer.optimizer.DeviceSpec
+import com.monai.optimizer.optimizer.FrozenAppItem
+import com.monai.optimizer.optimizer.MonitorEngine
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.SCmd
@@ -115,6 +119,20 @@ class MainViewModel : ViewModel() {
     var cacheSizeMb by mutableStateOf(0L)
         private set
 
+    // ── Live Monitor (non-root, works for all privilege levels) ──────
+    /** CPU usage % dari /proc/stat — works tanpa root/Shizuku */
+    var cpuUsagePct by mutableStateOf(0)
+        private set
+
+    // ── App Freezer ───────────────────────────────────────────────────
+    var freezerApps by mutableStateOf<List<FrozenAppItem>>(emptyList())
+        private set
+    var freezerLoading by mutableStateOf(false)
+        private set
+    /** Package yang sedang dalam proses freeze/unfreeze (untuk loading indicator) */
+    var freezerActionPkg by mutableStateOf<String?>(null)
+        private set
+
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     private var isTickerRunning = false
     private var isPrefsSyncRunning = false
@@ -203,37 +221,42 @@ class MainViewModel : ViewModel() {
         if (isTickerRunning) return
         isTickerRunning = true
         viewModelScope.launch(Dispatchers.IO) {
-            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val mem = ActivityManager.MemoryInfo()
-
             while (isActive) {
-                am.getMemoryInfo(mem)
-                val avail = mem.availMem / (1024L * 1024L)
-                val total = mem.totalMem / (1024L * 1024L)
-                val usedPct = (((total - avail).toDouble() / total.toDouble()) * 100).toInt()
+                // ── MonitorEngine: no root needed, works for ALL users ──
+                val cpuPct  = MonitorEngine.getCpuUsagePercent()   // /proc/stat
+                val ramSnap = MonitorEngine.getRamSnapshot()       // /proc/meminfo
 
-                var fr = "--"
-                var tp = "--"
-                var zr = "--"
-                var gv = "--"
+                // CPU freq & temp via sysfs (world-readable on most devices)
+                val monFreqDisplay = MonitorEngine.getCpuFreqDisplay()
+                val monTempDisplay = MonitorEngine.getCpuTempDisplay()
+
+                // ── Root-only extras ────────────────────────────────────
+                var fr    = monFreqDisplay   // fallback ke MonitorEngine
+                var tp    = monTempDisplay   // fallback ke MonitorEngine
+                var zr    = "--"
+                var gv    = "--"
                 var cSize = 0L
 
                 if (hasRoot) {
-                    fr = RootEngine.getCpuFreqInfo()
-                    tp = RootEngine.getCpuTemp()
-                    zr = RootEngine.getZramInfo()
-                    gv = RootEngine.getCurrentGovernor()
+                    val rootFr = RootEngine.getCpuFreqInfo()
+                    val rootTp = RootEngine.getCpuTemp()
+                    if (rootFr != "N/A") fr = rootFr
+                    if (rootTp != "N/A") tp = rootTp
+                    zr    = RootEngine.getZramInfo()
+                    gv    = RootEngine.getCurrentGovernor()
                     cSize = RootEngine.getEstimatedCacheSizeMb()
                 }
 
                 withContext(Dispatchers.Main) {
-                    liveAvailRamMb = avail
-                    ramUsedPercent = usedPct
-                    cpuFreq = fr
-                    cpuTemp = tp
-                    zramInfo = zr
-                    currentGov = gv
-                    cacheSizeMb = cSize
+                    // RAM dari /proc/meminfo lebih akurat dari ActivityManager
+                    liveAvailRamMb = ramSnap.availMb
+                    ramUsedPercent = ramSnap.usedPct
+                    cpuUsagePct    = cpuPct
+                    cpuFreq        = fr
+                    cpuTemp        = tp
+                    zramInfo       = zr
+                    currentGov     = gv
+                    cacheSizeMb    = cSize
                 }
                 delay(1500)
             }
@@ -555,6 +578,87 @@ class MainViewModel : ViewModel() {
                 statusSuccess = success
                 postNotifLogMsg(ctx, "⚡ $msg")
                 log = listOf(LogEntry(sdf.format(Date()), cmdText, success)) + log
+            }
+        }
+    }
+
+    // ── App Freezer Methods ───────────────────────────────────────────
+
+    /**
+     * Ambil semua installed apps + query status frozen via Shizuku.
+     * Butuh Shizuku untuk cek status; list app-nya dari PackageManager.
+     */
+    fun loadFreezerApps(ctx: Context) {
+        if (freezerLoading) return
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { freezerLoading = true }
+
+            // Query frozen states via Shizuku (atau empty set jika tidak tersedia)
+            val suspendedPkgs = if (hasShizuku || hasRoot) ShizukuEngine.listSuspendedPkgs() else emptySet()
+            val disabledPkgs  = if (hasShizuku || hasRoot) ShizukuEngine.listDisabledPkgs() else emptySet()
+
+            // Get all installed packages
+            val pm   = ctx.packageManager
+            // Get all installed packages — disabled ones tetap muncul di list,
+            // status-nya kita deteksi via Shizuku pm list packages -s/-d di atas.
+            val pkgs = runCatching { pm.getInstalledPackages(0) }
+                .getOrElse { emptyList() }
+
+            val items = pkgs
+                .filter { it.packageName != ctx.packageName } // exclude diri sendiri
+                .mapNotNull { pi ->
+                    val appInfo  = pi.applicationInfo ?: return@mapNotNull null
+                    val label    = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrElse { pi.packageName }
+                    val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    FrozenAppItem(
+                        name       = label,
+                        pkg        = pi.packageName,
+                        isSystem   = isSystem,
+                        isFrozen   = pi.packageName in suspendedPkgs,
+                        isDisabled = pi.packageName in disabledPkgs
+                    )
+                }
+                .sortedWith(
+                    compareBy<FrozenAppItem> { !it.isLocked }  // frozen dulu
+                        .thenBy { it.isSystem }                 // user apps lebih atas
+                        .thenBy { it.name.lowercase() }         // alfabet
+                )
+
+            withContext(Dispatchers.Main) {
+                freezerApps  = items
+                freezerLoading = false
+            }
+        }
+    }
+
+    /**
+     * Toggle freeze/unfreeze satu app via Shizuku.
+     * Freeze  = `pm suspend --user 0 <pkg>`
+     * Unfreeze = `pm unsuspend --user 0 <pkg>`
+     */
+    fun toggleFreezeApp(ctx: Context, item: FrozenAppItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { freezerActionPkg = item.pkg }
+
+            val r = if (item.isLocked) ShizukuEngine.unsuspendApp(item.pkg)
+                    else               ShizukuEngine.suspendApp(item.pkg)
+
+            // Update entry langsung tanpa reload semua
+            withContext(Dispatchers.Main) {
+                freezerActionPkg = null
+                if (r.success || r.output.contains("active") || r.output.contains("frozen")) {
+                    val nowFrozen = !item.isLocked
+                    freezerApps = freezerApps.map { app ->
+                        if (app.pkg == item.pkg) app.copy(isFrozen = nowFrozen, isDisabled = false)
+                        else app
+                    }
+                    statusMsg     = if (nowFrozen) "${item.name} frozen" else "${item.name} unfrozen"
+                    statusSuccess = true
+                } else {
+                    statusMsg     = "Failed: ${r.output.take(60)}"
+                    statusSuccess = false
+                }
+                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
     }
