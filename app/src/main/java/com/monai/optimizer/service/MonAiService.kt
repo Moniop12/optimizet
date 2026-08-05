@@ -45,11 +45,12 @@ class MonAiService : Service() {
     private var lastFocusInfo = AppFocusInfo("System Active", null, 0L)
     private var dumpsysPollTick = 0
 
-    // Temporary Status Log for Notification Banner
+    // Dynamic Package Regex Parser untuk Samsung OneUI, HyperOS, dan Stock
+    private val pkgRegex = Regex("""([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)""")
+
     private var tempNotifLogMsg: String? = null
     private var tempLogJob: Job? = null
 
-    // Notification Customizer Flags
     private var showNotifRam = true
     private var showNotifCpu = true
     private var showNotifPower = true
@@ -66,8 +67,8 @@ class MonAiService : Service() {
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
 
-        private const val MONITOR_INTERVAL_MS = 2000L
-        private const val DUMPSYS_POLL_EVERY = 4
+        private const val MONITOR_INTERVAL_MS = 2500L
+        private const val DUMPSYS_POLL_EVERY = 3
 
         var currentActiveProfile: OptProfile? = null
 
@@ -180,7 +181,7 @@ class MonAiService : Service() {
         tempNotifLogMsg = msg
         triggerNotificationRefresh()
         tempLogJob = scope.launch {
-            delay(4000L) // Tampilkan log sementara selama 4 detik
+            delay(4000L)
             tempNotifLogMsg = null
             triggerNotificationRefresh()
         }
@@ -188,7 +189,9 @@ class MonAiService : Service() {
 
     private fun triggerNotificationRefresh() {
         scope.launch {
-            val focusInfo = getFocusedAppInfo(this@MonAiService, RootEngine.hasRoot(), ShizukuEngine.isRunning() && ShizukuEngine.hasPerm())
+            val hasRoot = RootEngine.hasRoot()
+            val hasShz = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
+            val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShz)
             val bat = getBatteryPowerInfo(this@MonAiService)
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), bat))
@@ -207,17 +210,20 @@ class MonAiService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
+    // ── PERBAIKAN MONITORING LOOP: Cache Status HasRoot & HasShizuku (No CPU Spike) ──
     private fun startMonitoringLoop() {
         scope.launch {
+            // Evaluasi sekali di luar loop agar tidak memicu `su` setiap 2 detik
+            val cachedHasRoot = RootEngine.hasRoot()
+            val cachedHasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
+
             while (isActive && isRunning) {
-                val hasRoot = RootEngine.hasRoot()
-                val hasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
-                val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShizuku)
-                val cpuFreq = if (hasRoot) RootEngine.getCpuFreqInfo() else "--"
-                val cpuTemp = if (hasRoot) RootEngine.getCpuTemp() else "--"
+                val focusInfo = getFocusedAppInfo(this@MonAiService, cachedHasRoot, cachedHasShizuku)
+                val cpuFreq = if (cachedHasRoot) RootEngine.getCpuFreqInfo() else "--"
+                val cpuTemp = if (cachedHasRoot) RootEngine.getCpuTemp() else "--"
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                if (hasRoot && isChargeLimitEnabled) {
+                if (cachedHasRoot && isChargeLimitEnabled) {
                     if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
                         ChargingEngine.setChargingEnabled(false)
                         isChargePausedByLimit = true
@@ -227,7 +233,7 @@ class MonAiService : Service() {
                     }
                 }
 
-                if (hasRoot && isThermalProtectEnabled && bat.isCharging) {
+                if (cachedHasRoot && isThermalProtectEnabled && bat.isCharging) {
                     if (bat.tempC > 42.0 && !isThermalThrottled) {
                         ChargingEngine.setChargeCurrentMaxMa(500)
                         isThermalThrottled = true
@@ -237,7 +243,7 @@ class MonAiService : Service() {
                     }
                 }
 
-                if (hasRoot && aiOptimizerEnabled) {
+                if (cachedHasRoot && aiOptimizerEnabled) {
                     val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     val memInfo = ActivityManager.MemoryInfo()
                     am.getMemoryInfo(memInfo)
@@ -320,20 +326,24 @@ class MonAiService : Service() {
         } catch (_: Exception) { null }
     }
 
+    // ── PERBAIKAN PARSING DUMPSYS WINDOW (Samsung OneUI & HyperOS Compatibility) ──
+    private fun parsePackageFromDumpsys(output: String): String? {
+        if (output.isBlank()) return null
+        if (output.contains("/")) {
+            val beforeSlash = output.substringBefore("/")
+            val clean = beforeSlash.split(" ", "{").lastOrNull()?.trim()
+            if (!clean.isNullOrEmpty() && clean.contains(".")) return clean
+        }
+        val matches = pkgRegex.findAll(output).map { it.value }.toList()
+        return matches.firstOrNull { it.contains(".") && !it.startsWith("android.view") && !it.contains("StatusBar") }
+    }
+
     private fun getFocusedAppViaDumpsys(ctx: Context): AppFocusInfo {
         try {
             val r = RootEngine.su("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
             if (r.success && r.output.isNotBlank()) {
-                val raw = r.output
-                val pkg = when {
-                    raw.contains("/") -> {
-                        val beforeSlash = raw.substringBefore("/")
-                        if (beforeSlash.contains(" ")) beforeSlash.split(" ").last() else beforeSlash
-                    }
-                    else -> ""
-                }
-                val cleanPkg = pkg.replace("{", "").replace("}", "").trim()
-                if (cleanPkg.isNotBlank() && cleanPkg.contains(".")) {
+                val cleanPkg = parsePackageFromDumpsys(r.output)
+                if (!cleanPkg.isNullOrBlank()) {
                     val appRam = getAppRamMb(cleanPkg, useRoot = true)
                     return AppFocusInfo(labelFor(ctx, cleanPkg), cleanPkg, appRam)
                 }
@@ -342,27 +352,12 @@ class MonAiService : Service() {
         return AppFocusInfo("Home Screen", null, 0L)
     }
 
-    /** Cermin dari getFocusedAppViaDumpsys tapi lewat Shizuku UserService —
-     *  dumpsys window itu command shell biasa, genuinely jalan tanpa root.
-     *  Sebelumnya cuma ada jalur root, makanya Shizuku-only user selalu
-     *  keliatan "System Active" pas Usage Access belum di-grant. */
     private fun getFocusedAppViaShizuku(ctx: Context): AppFocusInfo {
         try {
             val r = ShizukuEngine.sh("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
             if (r.success && r.output.isNotBlank()) {
-                val raw = r.output
-                val pkg = when {
-                    raw.contains("/") -> {
-                        val beforeSlash = raw.substringBefore("/")
-                        if (beforeSlash.contains(" ")) beforeSlash.split(" ").last() else beforeSlash
-                    }
-                    else -> ""
-                }
-                val cleanPkg = pkg.replace("{", "").replace("}", "").trim()
-                if (cleanPkg.isNotBlank() && cleanPkg.contains(".")) {
-                    // RAM per-app butuh baca /proc/<pid>/status — itu masih
-                    // root-only (SELinux blokir shell UID baca proc app lain),
-                    // jadi lewat Shizuku RAM app-nya ditampilkan 0 (fallback "System").
+                val cleanPkg = parsePackageFromDumpsys(r.output)
+                if (!cleanPkg.isNullOrBlank()) {
                     return AppFocusInfo(labelFor(ctx, cleanPkg), cleanPkg, 0L)
                 }
             }
@@ -436,8 +431,6 @@ class MonAiService : Service() {
         valRead
     } catch (_: Exception) { 0 }
 
-    // ── Dynamic Custom Notification Builder (View.GONE Hiding + Live Log Toast) ──
-
     private fun buildNotification(
         focus: AppFocusInfo,
         cpuFreq: String,
@@ -470,7 +463,6 @@ class MonAiService : Service() {
             }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // Jika ada log sementara (saat jalankan fitur), tampilkan log di judul
         val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == "MonProject") "MonProject • Dashboard Active" else "MonProject • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
         val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
@@ -508,7 +500,6 @@ class MonAiService : Service() {
             setTextViewText(R.id.txt_app_title, displayTitle)
             setTextViewText(R.id.txt_mode_badge, profileLabel)
 
-            // View.GONE: HILANG TOTAL dari layar jika di-OFF-kan (Bukan tulisan "OFF")
             setViewVisibility(R.id.txt_col_ram, if (showNotifRam) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.txt_col_cpu, if (showNotifCpu) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.txt_col_power, if (showNotifPower) View.VISIBLE else View.GONE)
@@ -525,8 +516,6 @@ class MonAiService : Service() {
             setTextViewText(R.id.txt_exp_app_title, displayTitle)
             setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
 
-            // View.GONE: HILANG TOTAL jika di-OFF-kan — kena seluruh chip
-            // container (termasuk label "APP RAM" dll), bukan cuma value-nya.
             setViewVisibility(R.id.chip_ram, if (showNotifRam) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.chip_cpu, if (showNotifCpu) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.chip_power, if (showNotifPower) View.VISIBLE else View.GONE)

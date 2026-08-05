@@ -7,13 +7,15 @@ object ChargingEngine {
         "/sys/class/power_supply/battery/current_max",
         "/sys/class/power_supply/main/current_max",
         "/sys/class/power_supply/battery/charging_current",
-        "/sys/class/power_supply/battery/step_charging_enabled"
+        "/sys/class/power_supply/battery/step_charging_enabled",
+        "/sys/class/power_supply/battery/siop_level" // Dukungan Perangkat Samsung
     )
 
     private val ENABLE_NODES = listOf(
         "/sys/class/power_supply/battery/charging_enabled",
         "/sys/class/power_supply/battery/battery_charging_enabled",
-        "/sys/class/power_supply/battery/store_mode"
+        "/sys/class/power_supply/battery/store_mode",
+        "/sys/class/power_supply/battery/mmi_charging_enable" // Dukungan Motorola / Lenovo
     )
 
     private val SUSPEND_NODES = listOf(

@@ -114,14 +114,11 @@ object RootEngine {
         )
     }
 
-    // ── Smooth UI & Rendering Engine (Combined Animation Scaling) ────
+    // ── Smooth UI & Dynamic System Tweaks (Hanya Command yang Real & Efektif Secara Runtime) ──
 
     fun applySmoothRenderingTweaks(enable: Boolean, maxRefreshRate: Float = 90f): CmdResult {
         return if (enable) {
             su(
-                "setprop debug.sf.latch_unsignaled 1; " +
-                "setprop renderthread.skia.reduce_ops_task_splitting true; " +
-                "setprop view.scroll_friction 0.005; " +
                 "settings put global window_animation_scale 0.5; " +
                 "settings put global transition_animation_scale 0.5; " +
                 "settings put global animator_duration_scale 0.5; " +
@@ -132,9 +129,6 @@ object RootEngine {
             )
         } else {
             su(
-                "setprop debug.sf.latch_unsignaled 0; " +
-                "setprop renderthread.skia.reduce_ops_task_splitting false; " +
-                "setprop view.scroll_friction 0.015; " +
                 "settings put global window_animation_scale 1.0; " +
                 "settings put global transition_animation_scale 1.0; " +
                 "settings put global animator_duration_scale 1.0; " +
@@ -146,9 +140,6 @@ object RootEngine {
         }
     }
 
-    // ── AppOps: batasi aktivitas background app pihak-3 (bukan sistem) ──
-    // appops ini command shell biasa, jalan di root maupun Shizuku, gak
-    // butuh privilese kernel apapun.
     fun restrictBackground(): CmdResult = su(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
         "appops set \$pkg RUN_IN_BACKGROUND ignore; " +

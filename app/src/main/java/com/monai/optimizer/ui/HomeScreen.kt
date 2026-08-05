@@ -33,9 +33,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.monai.optimizer.R
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.monai.optimizer.R
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.ui.components.*
 import com.monai.optimizer.ui.theme.*
@@ -58,7 +58,7 @@ fun HomeScreen(vm: MainViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(AppBg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -118,7 +118,7 @@ fun HomeScreen(vm: MainViewModel) {
 
         DeviceOverviewCard(vm)
 
-        // REAL SYSTEM UI & RENDERING TWEAKS CARD
+        // PENAMAAN JUJUR & FITUR EFEKTIF: Smooth UI & Dynamic Optimizer Engine
         SystemTweaksCard(vm)
 
         SectionLabel("MANUAL PROFILES")
@@ -139,11 +139,11 @@ fun SystemTweaksCard(vm: MainViewModel) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Filled.AutoAwesome, CyanGlow, active = true)
                     Column {
-                        Text("Smooth UI & Rendering Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("Smooth UI Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
-                            if (vm.hasRoot) "SurfaceFlinger, Skia GPU & Anim 0.5x"
-                            else if (vm.hasShizuku) "Anim speed only — full GPU tweak needs root"
-                            else "Requires root or Shizuku",
+                            if (vm.hasRoot) "Dynamic Refresh Rate & 0.5x Window Animations"
+                            else if (vm.hasShizuku) "Animation Speed & Refresh Rate (ADB Mode)"
+                            else "Requires Root or Shizuku",
                             color = TextSecondary, style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -156,10 +156,9 @@ fun SystemTweaksCard(vm: MainViewModel) {
                 )
             }
 
-            // Indicator Badge Ramping
             Row(Modifier.fillMaxWidth()) {
                 Text(
-                    "• Status Engine: ${if (vm.aiOptimizerEnabled) (if (vm.hasRoot) "ACTIVE (Smooth Scroll + Anim 0.5x)" else "ACTIVE (Anim 0.5x, Shizuku)") else "OFF"}",
+                    "• Engine Status: ${if (vm.aiOptimizerEnabled) "ACTIVE (0.5x Scale + High Refresh Rate)" else "DEFAULT"}",
                     color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -175,7 +174,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
     AppCard {
         Column(Modifier.padding(16.dp), Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                SectionLabel("DEVICE", modifier = Modifier.padding(0.dp))
+                SectionLabel("DEVICE OVERVIEW", modifier = Modifier.padding(0.dp))
                 if (s == null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = CyanGlow)
             }
 
@@ -201,7 +200,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     }
                 }
 
-                HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -215,7 +214,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
                         color = if (vm.ramUsedPercent > 85) RedErr else CyanGlow,
-                        trackColor = DarkSurfaceVar
+                        trackColor = AppSurfaceVariant
                     )
                 }
 
@@ -252,10 +251,10 @@ fun ProfileSelectorRow(vm: MainViewModel) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (active) accent.copy(alpha = 0.14f) else DarkSurfaceVar)
+                            .background(if (active) accent.copy(alpha = 0.12f) else AppSurfaceVariant)
                             .border(
                                 width = 1.dp,
-                                color = if (active) accent else GlassBorder,
+                                color = if (active) accent else HairlineBorder,
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .clickable(enabled = !vm.isOptimizing) { vm.applyProfile(profile) }
@@ -319,7 +318,7 @@ fun ProgressCard(vm: MainViewModel) {
                     .height(5.dp)
                     .clip(RoundedCornerShape(3.dp)),
                 color = CyanGlow,
-                trackColor = DarkSurfaceVar
+                trackColor = AppSurfaceVariant
             )
         }
     }

@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.MonAi" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#E4E6EC</item>
-        <item name="android:statusBarColor">#E4E6EC</item>
-        <item name="android:navigationBarColor">#E4E6EC</item>
+        <!-- Theme Clean Off-White Soft Background -->
+        <item name="android:windowBackground">#F3F4F7</item>
+        <item name="android:statusBarColor">#F3F4F7</item>
+        <item name="android:navigationBarColor">#F3F4F7</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
     </style>

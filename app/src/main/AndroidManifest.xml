@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <!-- Optional, lightweight foreground-app detection without root polling (§5) -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions"/>
 
@@ -34,9 +33,14 @@
             android:name=".service.MonAiService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse"/>
+            android:foregroundServiceType="specialUse">
+            
+            <!-- Android 14 (Target SDK 34) Mandatory Property Fix -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="System Optimization Engine &amp; Battery Safety Monitor"/>
+        </service>
 
-        <!-- §6 fix — auto-restart the Live Service after reboot if it was on -->
         <receiver
             android:name=".service.BootReceiver"
             android:enabled="true"

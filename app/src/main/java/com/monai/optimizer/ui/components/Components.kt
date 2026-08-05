@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -25,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monai.optimizer.ui.theme.*
 
-/** Small uppercase caption used to introduce a group of cards. */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -39,20 +37,15 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Base elevated card used everywhere for visual consistency.
- *
- * Kartu = satu tingkat lebih terang dari background ([Surface2] vs
- * [BgBase]) — di dark mode kontras dari tone jauh lebih kelihatan
- * daripada shadow tipis. Highlight tipis di tepi atas (gloss) menambah
- * kesan "mengkilap" ala M3 Expressive tanpa border tebal atau blur ganda.
- * [emphasize] = true dipakai untuk 1 kartu paling penting/aktif per layar.
+ * Kartu Utama M3 Clean & Modern — Background Putih Murni (#FFFFFF),
+ * Shadow Slate lembut (non-silau), Border Halus (#E1E4EA).
  */
 @Composable
 fun AppCard(
     modifier: Modifier = Modifier,
     accent: Color? = null,
     emphasize: Boolean = false,
-    containerColor: Color = Surface2,
+    containerColor: Color = AppSurface,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(20.dp)
@@ -60,25 +53,21 @@ fun AppCard(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = if (emphasize) 12.dp else 5.dp,
+                elevation = if (emphasize) 8.dp else 3.dp,
                 shape = shape,
                 ambientColor = CardShadow,
                 spotColor = CardShadow
             )
             .clip(shape)
-            .background(containerColor)
-            .background(Brush.verticalGradient(listOf(GlossHighlight, GlossFade), endY = 140f)),
+            .background(containerColor),
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = if (emphasize && accent != null) BorderStroke(1.2.dp, accent.copy(alpha = 0.4f)) else BorderStroke(1.dp, HairlineBorder),
+        border = if (emphasize && accent != null) BorderStroke(1.2.dp, accent.copy(alpha = 0.5f)) else BorderStroke(1.dp, HairlineBorder),
         content = content
     )
 }
 
-/** Small round icon badge. Netral (abu-abu) secara default; kalau [active]
- *  ikon & background-nya pakai warna konteks fitur (baterai=hijau, dst),
- *  supaya warna jadi sinyal makna — bukan dekorasi di setiap baris. */
 @Composable
 fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 19.dp, active: Boolean = false) {
     val effectiveTint = if (active) tint else TextSecondary
@@ -86,7 +75,7 @@ fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 1
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (active) tint.copy(alpha = 0.22f) else InkDisabled.copy(alpha = 0.18f)),
+            .background(if (active) tint.copy(alpha = 0.14f) else AppSurfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, null, tint = effectiveTint, modifier = Modifier.size(iconSize))
@@ -97,8 +86,8 @@ fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, iconSize: Dp = 1
 fun StatusPill(label: String, active: Boolean, color: Color) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = color.copy(alpha = if (active) 0.14f else 0.06f),
-        border = BorderStroke(1.dp, color.copy(alpha = if (active) 0.45f else 0.16f))
+        color = color.copy(alpha = if (active) 0.12f else 0.06f),
+        border = BorderStroke(1.dp, color.copy(alpha = if (active) 0.4f else 0.16f))
     ) {
         Row(
             Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -131,7 +120,6 @@ fun StatBlock(label: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** A tappable summary row that shows current state and navigates to a detail sub-screen. */
 @Composable
 fun NavSummaryCard(
     icon: ImageVector,
@@ -145,14 +133,12 @@ fun NavSummaryCard(
     Surface(
         onClick = onClick,
         shape = navShape,
-        color = Color.Transparent,
+        color = AppSurface,
         border = BorderStroke(1.dp, HairlineBorder),
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 5.dp, shape = navShape, ambientColor = CardShadow, spotColor = CardShadow)
+            .shadow(elevation = 3.dp, shape = navShape, ambientColor = CardShadow, spotColor = CardShadow)
             .clip(navShape)
-            .background(Surface2)
-            .background(Brush.verticalGradient(listOf(GlossHighlight, GlossFade), endY = 140f))
     ) {
         Row(
             Modifier.padding(14.dp),
@@ -170,7 +156,6 @@ fun NavSummaryCard(
     }
 }
 
-/** Row card for a single executable maintenance tool (with running/locked states). */
 @Composable
 fun ToolActionRow(
     icon: ImageVector,
@@ -197,7 +182,7 @@ fun ToolActionRow(
                 enabled = enabled && !isRunning,
                 shape = RoundedCornerShape(9.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = if (enabled) AccentMuted else TextDisabled.copy(alpha = 0.1f),
+                    containerColor = if (enabled) AccentMuted else AppSurfaceVariant,
                     contentColor = if (enabled) Accent else TextDisabled
                 ),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
@@ -213,20 +198,16 @@ fun ToolActionRow(
     }
 }
 
-/** Inline status/info banner (success, error, neutral) — background & ikon
- *  ikut warna accent (tint lembut), bukan cuma teksnya doang. */
 @Composable
 fun InfoBanner(text: String, accent: Color = TextSecondary) {
     val bannerShape = RoundedCornerShape(14.dp)
     Surface(
         shape = bannerShape,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        color = accent.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
         modifier = Modifier
-            .shadow(elevation = 3.dp, shape = bannerShape, ambientColor = CardShadow, spotColor = CardShadow)
+            .fillMaxWidth()
             .clip(bannerShape)
-            .background(Surface3)
-            .background(accent.copy(alpha = 0.12f))
     ) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 9.dp),

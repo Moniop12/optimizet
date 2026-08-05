@@ -15,12 +15,12 @@ private val MonAiColorScheme = lightColorScheme(
     secondary            = InkSecondary,
     onSecondary          = InkPrimary,
     tertiary             = InkSecondary,
-    background           = BgBase,
-    surface              = CardBase,
-    surfaceVariant       = CardRaised,
-    surfaceContainer     = CardBase,
-    surfaceContainerHigh = CardRaised,
-    surfaceContainerLow  = BgBase,
+    background           = AppBg,
+    surface              = AppSurface,
+    surfaceVariant       = AppSurfaceVariant,
+    surfaceContainer     = AppSurface,
+    surfaceContainerHigh = AppSurfaceVariant,
+    surfaceContainerLow  = AppBg,
     onBackground         = InkPrimary,
     onSurface            = InkPrimary,
     onSurfaceVariant     = InkSecondary,
@@ -28,7 +28,6 @@ private val MonAiColorScheme = lightColorScheme(
     error                = StatusError,
 )
 
-// Shape M3 Expressive tetap dipertahankan — sudut besar & lembut.
 private val MonAiShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small      = RoundedCornerShape(14.dp),
