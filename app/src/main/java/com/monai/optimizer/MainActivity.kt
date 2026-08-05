@@ -19,18 +19,42 @@ import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
 
-    // Sebelumnya listener ini didaftarkan tapi isinya kosong ({ _, _ -> }) —
-    // jadi walau user udah kasih izin Shizuku, app gak pernah tau, harus
-    // force-stop dulu biar status-nya ke-refresh. Sekarang beneran
-    // memicu re-check begitu hasil izin (grant/deny) datang.
     private var onShizukuPermResult: (() -> Unit)? = null
-    private val shizuListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
+
+    // ── 1. Binder Received (KRITIS — ini yang hilang sebelumnya) ─────────
+    //
+    // Shizuku TIDAK otomatis deliver binder-nya ke app kita. App harus
+    // daftarkan listener ini dulu. Tanpa ini, Shizuku.pingBinder() selalu
+    // return false meskipun Shizuku / Shizuku+ jelas-jelas running.
+    //
+    // "Sticky" artinya: kalau Shizuku sudah running sebelum listener
+    // didaftarkan (misalnya app dibuka setelah Shizuku running),
+    // listener langsung terpanggil saat registrasi — tidak perlu tunggu
+    // event berikutnya.
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        onShizukuPermResult?.invoke()
+    }
+
+    // ── 2. Binder Dead (Shizuku mati / restart) ──────────────────────────
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        // Binder mati — nanti saat Shizuku restart binderReceivedListener
+        // akan terpanggil lagi otomatis.
+    }
+
+    // ── 3. Permission Result (user tap Allow/Deny di dialog Shizuku) ─────
+    private val permResultListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
         onShizukuPermResult?.invoke()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Shizuku.addRequestPermissionResultListener(shizuListener)
+
+        // Urutan registrasi penting: daftarkan binder listener SEBELUM
+        // setContent agar binder sudah tersedia saat ViewModel pertama init.
+        Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
+        Shizuku.addBinderDeadListener(binderDeadListener)
+        Shizuku.addRequestPermissionResultListener(permResultListener)
+
         setContent {
             MonAiTheme {
                 Surface(
@@ -39,13 +63,13 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val vm: MainViewModel = viewModel()
                     val ctx = applicationContext
+
+                    // Callback yang dipanggil oleh ketiga listener di atas.
                     onShizukuPermResult = { vm.init(ctx) }
 
-                    // Re-check root & Shizuku SETIAP kali app kembali ke depan —
-                    // bukan cuma sekali pas pertama buka. Ini nutup kasus: user
-                    // approve izin root di dialog Magisk/KernelSU, atau
-                    // buka app Shizuku buat nyalain servicenya, lalu balik lagi
-                    // ke sini — sebelumnya harus force-stop dulu baru kedeteksi.
+                    // Re-check setiap kali app kembali ke foreground —
+                    // untuk mendeteksi: root baru di-grant, Shizuku distart
+                    // dari luar, atau permission baru dikasih.
                     val lifecycleOwner = LocalLifecycleOwner.current
                     DisposableEffect(lifecycleOwner) {
                         val observer = LifecycleEventObserver { _, event ->
@@ -62,7 +86,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        Shizuku.removeRequestPermissionResultListener(shizuListener)
+        Shizuku.removeBinderReceivedListener(binderReceivedListener)
+        Shizuku.removeBinderDeadListener(binderDeadListener)
+        Shizuku.removeRequestPermissionResultListener(permResultListener)
         onShizukuPermResult = null
         super.onDestroy()
     }
