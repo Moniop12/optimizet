@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +28,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(AppBg)
     ) {
         Row(
             Modifier
@@ -40,7 +41,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
             Column {
                 Text("Smart Charging Control", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
-                Text("Hardware limits & current tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("Hardware limits, pass-through & current tuning", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -55,10 +56,28 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                 InfoBanner("Hardware charging control requires Root access", StatusError)
             }
 
-            // Satu kartu untuk seluruh pengaturan charging — baris demi baris
-            // dipisah divider tipis, bukan 4 kartu terpisah dengan padding masing-masing.
             AppCard {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+
+                    // ── FITUR BARU: Bypass Charging (Pass-Through Power) ──
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconBadge(Icons.Filled.Power, PurpleGlow, size = 34.dp, iconSize = 16.dp, active = vm.isBypassChargingEnabled)
+                        Column(Modifier.weight(1f)) {
+                            Text("Bypass Charging (Direct Power)", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Suplay daya langsung tanpa mengisi baterai (HP Dingin)", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(
+                            checked = vm.isBypassChargingEnabled,
+                            onCheckedChange = { vm.setBypassCharging(it) },
+                            enabled = vm.hasRoot
+                        )
+                    }
+
+                    HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                     // ── Charge Limit ──────────────────────────────
                     Row(
@@ -94,7 +113,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         )
                     }
 
-                    HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                    HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                     // ── Thermal Protection ────────────────────────
                     Row(
@@ -114,7 +133,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         )
                     }
 
-                    HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                    HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                     // ── Charging Speed ─────────────────────────────
                     Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -165,13 +184,14 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         }
                     }
 
-                    HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                    HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
-                    // ── Live Status (ringkas, tanpa kartu terpisah) ──
+                    // ── Live Status ──
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         Arrangement.SpaceBetween
                     ) {
+                        StatBlock("BYPASS", if (vm.isBypassChargingEnabled) "Active" else "Off")
                         StatBlock("LIMIT", if (vm.isChargeLimitEnabled) "${vm.chargeLimitPct.toInt()}%" else "Off")
                         StatBlock("SPEED", "${vm.chargeSpeedMa} mA")
                         StatBlock("ACCESS", if (vm.hasRoot) "Root" else if (vm.hasShizuku) "ADB" else "Limited")

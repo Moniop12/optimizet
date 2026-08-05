@@ -53,7 +53,7 @@ class MainViewModel : ViewModel() {
     var progress by mutableFloatStateOf(0f)
         private set
     var statusMsg by mutableStateOf("")
-    var statusSuccess by mutableStateOf<Boolean?>(null)  // null = netral, true = hijau, false = merah
+    var statusSuccess by mutableStateOf<Boolean?>(null)
         private set
     var activeProfile by mutableStateOf<OptProfile?>(null)
         private set
@@ -68,11 +68,15 @@ class MainViewModel : ViewModel() {
         private set
     var isThermalProtectEnabled by mutableStateOf(false)
         private set
+    var isBypassChargingEnabled by mutableStateOf(false)
+        private set
 
     var aiOptimizerEnabled by mutableStateOf(false)
         private set
 
-    // Notification Modular Settings States
+    var resolutionPreset by mutableStateOf("NATIVE")
+        private set
+
     var showNotifRam by mutableStateOf(true)
         private set
     var showNotifCpu by mutableStateOf(true)
@@ -108,9 +112,6 @@ class MainViewModel : ViewModel() {
 
     private var appCtx: Context? = null
 
-    /** Refresh rate tertinggi yang device dukung — dipakai Smooth UI &
-     *  profile Performance/Balanced biar refresh rate dipush maksimal.
-     *  Fallback 90f kalau gagal query (device lawas/API terbatas). */
     @Suppress("DEPRECATION")
     private fun maxRefreshRate(): Float = try {
         val wm = appCtx?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
@@ -157,7 +158,9 @@ class MainViewModel : ViewModel() {
                 chargeSpeedMa = state.chargeSpeedMa
                 isLiveServiceRunning = state.isLiveServiceRunning
                 isThermalProtectEnabled = state.isThermalProtectEnabled
+                isBypassChargingEnabled = state.isBypassChargingEnabled
                 aiOptimizerEnabled = state.aiOptimizerEnabled
+                resolutionPreset = state.resolutionPreset
 
                 showNotifRam = state.showNotifRam
                 showNotifCpu = state.showNotifCpu
@@ -220,39 +223,66 @@ class MainViewModel : ViewModel() {
         ctx.startService(intent)
     }
 
+    // ── FITUR BARU LOGGING: Bypass Charging Toggle ───────────────────
+    fun setBypassCharging(enabled: Boolean) {
+        isBypassChargingEnabled = enabled
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setBypassChargingEnabled(enabled)
+            val r = ChargingEngine.setBypassCharging(enabled)
+            withContext(Dispatchers.Main) {
+                val msg = if (enabled) "Bypass Charging Enabled (Direct Power)" else "Bypass Charging Disabled"
+                statusMsg = if (r.success) msg else "Kernel does not support Bypass Charging"
+                statusSuccess = r.success
+                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
+            }
+        }
+    }
+
+    // ── FITUR BARU LOGGING: Resolution Preset Scaler ────────────────
+    fun applyResolutionPreset(preset: String, size: String?, density: Int?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val r: SCmd = if (hasRoot) {
+                val rootRes = RootEngine.su(if (size == null) "wm size reset && wm density reset" else "wm size $size && wm density $density")
+                SCmd(rootRes.success, rootRes.output, rootRes.cmd)
+            } else {
+                ShizukuEngine.setResolutionPreset(size, density)
+            }
+            prefsRepo.setResolutionPreset(preset)
+            withContext(Dispatchers.Main) {
+                resolutionPreset = preset
+                statusMsg = if (r.success) "Resolution preset set to $preset" else "Failed to set resolution"
+                statusSuccess = r.success
+                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
+            }
+        }
+    }
+
     fun toggleAiOptimizer(ctx: Context) {
         aiOptimizerEnabled = !aiOptimizerEnabled
         MonAiService.aiOptimizerEnabled = aiOptimizerEnabled
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setAiOptimizerEnabled(aiOptimizerEnabled)
             val hz = maxRefreshRate()
-            when {
-                hasRoot -> RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
-                hasShizuku -> ShizukuEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
+            val r: SCmd = if (hasRoot) {
+                val rootRes = RootEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
+                SCmd(rootRes.success, rootRes.output, rootRes.cmd)
+            } else {
+                ShizukuEngine.applySmoothRenderingTweaks(aiOptimizerEnabled, hz)
             }
             withContext(Dispatchers.Main) {
-                val scopeNote = if (!hasRoot && hasShizuku) " (Shizuku: anim, refresh rate & blur — GPU render tweak needs root)" else ""
-                val status = (if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled") + scopeNote
-                postNotifLogMsg(ctx, "⚡ $status")
+                val status = if (aiOptimizerEnabled) "Smooth UI Engine Enabled" else "Smooth UI Engine Disabled"
+                statusMsg = status
+                statusSuccess = r.success
+                postNotifLogMsg(ctx, "✨ $status")
+                log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }
         }
     }
 
-    fun toggleNotifRam() {
-        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifRamVisible(!showNotifRam) }
-    }
-
-    fun toggleNotifCpu() {
-        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifCpuVisible(!showNotifCpu) }
-    }
-
-    fun toggleNotifPower() {
-        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifPowerVisible(!showNotifPower) }
-    }
-
-    fun toggleNotifProfiles() {
-        viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifProfilesVisible(!showNotifProfiles) }
-    }
+    fun toggleNotifRam() { viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifRamVisible(!showNotifRam) } }
+    fun toggleNotifCpu() { viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifCpuVisible(!showNotifCpu) } }
+    fun toggleNotifPower() { viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifPowerVisible(!showNotifPower) } }
+    fun toggleNotifProfiles() { viewModelScope.launch(Dispatchers.IO) { prefsRepo.setNotifProfilesVisible(!showNotifProfiles) } }
 
     fun setChargeLimit(enabled: Boolean, pct: Float) {
         isChargeLimitEnabled = enabled
@@ -262,8 +292,11 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setChargeLimit(enabled, pct.toInt())
             if (!enabled && hasRoot) {
-                ChargingEngine.setChargingEnabled(true)
+                val r = ChargingEngine.setChargingEnabled(true)
                 MonAiService.isChargePausedByLimit = false
+                withContext(Dispatchers.Main) {
+                    log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
+                }
             }
         }
     }
@@ -274,8 +307,11 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setThermalProtectEnabled(enabled)
             if (!enabled && hasRoot && MonAiService.isThermalThrottled) {
-                ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                val r = ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
                 MonAiService.isThermalThrottled = false
+                withContext(Dispatchers.Main) {
+                    log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
+                }
             }
         }
     }
@@ -411,7 +447,7 @@ class MainViewModel : ViewModel() {
                     val res = ShizukuEngine.resetToDefaults()
                     newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
                     resultMsg = if (res.all { it.success })
-                        "Reset applied (Shizuku — anim & process limit only, governor/kernel unchanged: needs root)"
+                        "Reset applied (Shizuku — anim & process limit only)"
                     else "Reset partially failed — check Log"
                 }
                 else -> {

@@ -19,12 +19,13 @@ data class UserPreferencesState(
     val chargeSpeedMa: Int,
     val isLiveServiceRunning: Boolean,
     val isThermalProtectEnabled: Boolean,
-    val aiOptimizerEnabled: Boolean, // Smooth UI & Rendering Engine
-    // Notification Customizer Settings
+    val isBypassChargingEnabled: Boolean,
+    val aiOptimizerEnabled: Boolean,
     val showNotifRam: Boolean,
     val showNotifCpu: Boolean,
     val showNotifPower: Boolean,
     val showNotifProfiles: Boolean,
+    val resolutionPreset: String,
 )
 
 class UserPreferencesRepository(context: Context) {
@@ -38,13 +39,13 @@ class UserPreferencesRepository(context: Context) {
         val CHARGE_SPEED_MA = intPreferencesKey("charge_speed_ma")
         val LIVE_SERVICE_RUNNING = booleanPreferencesKey("is_live_service_running")
         val THERMAL_PROTECT_ENABLED = booleanPreferencesKey("is_thermal_protect_enabled")
+        val BYPASS_CHARGING_ENABLED = booleanPreferencesKey("is_bypass_charging_enabled")
         val AI_OPTIMIZER_ENABLED = booleanPreferencesKey("ai_optimizer_enabled")
-
-        // Notification Customizer Keys
         val SHOW_NOTIF_RAM = booleanPreferencesKey("show_notif_ram")
         val SHOW_NOTIF_CPU = booleanPreferencesKey("show_notif_cpu")
         val SHOW_NOTIF_POWER = booleanPreferencesKey("show_notif_power")
         val SHOW_NOTIF_PROFILES = booleanPreferencesKey("show_notif_profiles")
+        val RESOLUTION_PRESET = stringPreferencesKey("resolution_preset")
     }
 
     companion object {
@@ -64,11 +65,13 @@ class UserPreferencesRepository(context: Context) {
             chargeSpeedMa = prefs[Keys.CHARGE_SPEED_MA] ?: DEFAULT_CHARGE_SPEED_MA,
             isLiveServiceRunning = prefs[Keys.LIVE_SERVICE_RUNNING] ?: false,
             isThermalProtectEnabled = prefs[Keys.THERMAL_PROTECT_ENABLED] ?: false,
+            isBypassChargingEnabled = prefs[Keys.BYPASS_CHARGING_ENABLED] ?: false,
             aiOptimizerEnabled = prefs[Keys.AI_OPTIMIZER_ENABLED] ?: false,
             showNotifRam = prefs[Keys.SHOW_NOTIF_RAM] ?: true,
             showNotifCpu = prefs[Keys.SHOW_NOTIF_CPU] ?: true,
             showNotifPower = prefs[Keys.SHOW_NOTIF_POWER] ?: true,
             showNotifProfiles = prefs[Keys.SHOW_NOTIF_PROFILES] ?: true,
+            resolutionPreset = prefs[Keys.RESOLUTION_PRESET] ?: "NATIVE",
         )
     }
 
@@ -100,6 +103,10 @@ class UserPreferencesRepository(context: Context) {
         store.edit { prefs -> prefs[Keys.THERMAL_PROTECT_ENABLED] = enabled }
     }
 
+    suspend fun setBypassChargingEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[Keys.BYPASS_CHARGING_ENABLED] = enabled }
+    }
+
     suspend fun setAiOptimizerEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[Keys.AI_OPTIMIZER_ENABLED] = enabled }
     }
@@ -118,5 +125,9 @@ class UserPreferencesRepository(context: Context) {
 
     suspend fun setNotifProfilesVisible(visible: Boolean) {
         store.edit { prefs -> prefs[Keys.SHOW_NOTIF_PROFILES] = visible }
+    }
+
+    suspend fun setResolutionPreset(preset: String) {
+        store.edit { prefs -> prefs[Keys.RESOLUTION_PRESET] = preset }
     }
 }

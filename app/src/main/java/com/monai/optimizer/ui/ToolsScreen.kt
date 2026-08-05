@@ -31,7 +31,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBg)
+            .background(AppBg)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -55,16 +55,32 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
             onClick = { showNotifSheet = true }
         )
 
-        SectionLabel("POWER")
+        SectionLabel("POWER & CHARGING")
         NavSummaryCard(
             icon = Icons.Filled.BatteryChargingFull,
             accent = EmeraldGlow,
-            title = "Smart Charging Control",
+            title = "Smart Charging & Bypass Power",
             subtitle = if (!vm.hasRoot) "Requires root access"
+                       else if (vm.isBypassChargingEnabled) "Bypass Charging ACTIVE (HP Dingin)"
                        else if (vm.isChargeLimitEnabled) "Limit ${vm.chargeLimitPct.toInt()}% · ${vm.chargeSpeedMa} mA"
-                       else "Charge limit disabled",
+                       else "Charge control idle",
             onClick = onOpenCharging
         )
+
+        // ── FITUR BARU: App Standby Buckets Manager ─────────────────────────
+        ToolActionRow(
+            icon = Icons.Filled.Bedtime,
+            title = "App Standby Buckets (Hibernation)",
+            desc = "Setel aplikasi pihak-3 ke RESTRICTED (Bekukan total)",
+            accent = CleanPurple,
+            enabled = hasControl,
+            isRunning = vm.runningTools["standby_buckets"] == true
+        ) {
+            vm.runTool(
+                ctx, "standby_buckets", "App Standby Buckets",
+                "for pkg in \$(pm list packages -3 | cut -d: -f2); do am set-standby-bucket \$pkg restricted 2>/dev/null; done; echo done"
+            ) { ShizukuEngine.setStandbyBucketsRestricted() }
+        }
 
         ToolActionRow(
             icon = Icons.Filled.HourglassEmpty,
@@ -79,6 +95,10 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
                 "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg RUN_IN_BACKGROUND ignore; appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; done; echo done"
             ) { ShizukuEngine.restrictBackground() }
         }
+
+        // ── FITUR BARU: Resolution & DPI Scaler (Gaming Tuner) ────────────
+        SectionLabel("GAMING DISPLAY TUNER")
+        ResolutionScalerCard(vm, hasControl)
 
         SectionLabel("CPU & MEMORY TUNER")
         GovernorCard(vm)
@@ -149,11 +169,10 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
         Spacer(Modifier.height(12.dp))
     }
 
-    // Modal Bottom Sheet Ramping untuk Setting Notifikasi
     if (showNotifSheet) {
         ModalBottomSheet(
             onDismissRequest = { showNotifSheet = false },
-            containerColor = DarkSurface,
+            containerColor = AppSurface,
             contentColor = TextPrimary
         ) {
             Column(
@@ -165,7 +184,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
                 Text("Notification Dashboard Bar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Text("Toggle modules to show or hide completely in notification", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
 
-                HorizontalDivider(color = GlassBorder, thickness = 0.8.dp)
+                HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Text("Show App RAM Usage", color = TextPrimary, fontSize = 13.sp)
@@ -193,6 +212,44 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit) {
     }
 }
 
+// ── COMPOSABLE BARU: Resolution & Density Tuner Card ────────────────
+@Composable
+fun ResolutionScalerCard(vm: MainViewModel, enabled: Boolean) {
+    AppCard {
+        Column(Modifier.padding(12.dp), Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(Icons.Filled.AspectRatio, UtilityTeal, size = 34.dp, iconSize = 16.dp, active = enabled)
+                Column {
+                    Text("Resolution & Density Scaler", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Change GPU rendering resolution for more stable FPS gaming", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (!enabled) {
+                Text("Requires Root or Shizuku permission", color = RedErr, fontSize = 10.sp)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = vm.resolutionPreset == "NATIVE",
+                        onClick = { vm.applyResolutionPreset("NATIVE", null, null) },
+                        label = { Text("Default", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = vm.resolutionPreset == "720P",
+                        onClick = { vm.applyResolutionPreset("720P", "720x1600", 280) },
+                        label = { Text("720p (High FPS)", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = vm.resolutionPreset == "1080P",
+                        onClick = { vm.applyResolutionPreset("1080P", "1080x2400", 400) },
+                        label = { Text("1080p (FHD+)", fontSize = 11.sp) }
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
     AppCard(emphasize = true, accent = RedErr) {
@@ -201,8 +258,8 @@ fun DangerResetCard(vm: MainViewModel, hasControl: Boolean) {
             Column(Modifier.weight(1f)) {
                 Text("Reset to Stock Defaults", color = RedErr, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    if (vm.hasRoot) "Restore governor, sysctl & doze to factory settings"
-                    else "Restore anim speed & process limit (Shizuku) — governor/sysctl needs root",
+                    if (vm.hasRoot) "Restore governor, sysctl, resolution & doze to defaults"
+                    else "Restore anim speed & process limit (Shizuku) — governor needs root",
                     color = TextSecondary, style = MaterialTheme.typography.bodySmall
                 )
             }

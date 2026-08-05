@@ -10,13 +10,6 @@ import rikka.shizuku.Shizuku
 
 data class SCmd(val success: Boolean, val output: String, val cmd: String)
 
-/**
- * Eksekusi shell via Shizuku UserService — proses terpisah yang dijalankan
- * Shizuku dengan UID shell/root beneran (bukan reflection ke
- * Shizuku.newProcess yang sudah deprecated/hidden di versi Shizuku modern
- * dan sering gagal dgn "method not visible" di banyak device).
- * Lihat: ShellUserService.kt (proses yang benar-benar mengeksekusi command).
- */
 object ShizukuEngine {
     private const val T = "ShizukuEngine"
     const val PERM_CODE = 1001
@@ -28,7 +21,6 @@ object ShizukuEngine {
 
     fun requestPerm() { try { Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {} }
 
-    // ── UserService binding ──────────────────────────────────────────
     @Volatile private var service: IShellUserService? = null
     private val bindLock = Object()
 
@@ -53,7 +45,6 @@ object ShizukuEngine {
         }
     }
 
-    /** Blocking bind (dipanggil dari Dispatchers.IO, aman nunggu). Timeout 4 detik. */
     private fun ensureBound(): IShellUserService? {
         service?.let { return it }
         if (!isRunning() || !hasPerm()) return null
@@ -75,7 +66,7 @@ object ShizukuEngine {
 
     fun sh(cmd: String): SCmd {
         val svc = ensureBound()
-            ?: return SCmd(false, "Shizuku service not available — pastikan app Shizuku berjalan & izin sudah diberikan", cmd)
+            ?: return SCmd(false, "Shizuku service not available — make sure Shizuku app is running & permission is granted", cmd)
         return try {
             val raw = svc.exec(cmd)
             val sep = raw.indexOf('\u0001')
@@ -85,15 +76,27 @@ object ShizukuEngine {
             Log.d(T, "[SHZ $code] $cmd")
             SCmd(code == 0, out, cmd)
         } catch (e: Throwable) {
-            synchronized(bindLock) { service = null }  // proses mungkin mati, paksa rebind next call
+            synchronized(bindLock) { service = null }
             SCmd(false, e.message ?: "error", cmd)
         }
     }
 
-    // ── Profiles ──────────────────────────────────────────────────────
-    // Refresh rate, disable blur, dan Fixed Performance Mode SEMUA cuma
-    // command shell biasa (settings put / cmd power) — genuinely jalan
-    // tanpa root, jadi ditaruh di sini juga (bukan cuma root-only).
+    // ── FITUR BARU: App Standby Buckets (Hibernasi Aplikasi Pihak-3) ──
+    fun setStandbyBucketsRestricted(): SCmd = sh(
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+        "am set-standby-bucket \$pkg restricted 2>/dev/null; " +
+        "done; echo done"
+    )
+
+    // ── FITUR BARU: Resolution & DPI Scaler ──────────────────────────
+    fun setResolutionPreset(size: String?, density: Int?): SCmd {
+        val cmd = if (size == null || density == null) {
+            "wm size reset && wm density reset"
+        } else {
+            "wm size $size && wm density $density"
+        }
+        return sh(cmd)
+    }
 
     fun applyPerformance(maxRefreshRate: Float = 90f): List<SCmd> = listOf(
         sh("settings put global window_animation_scale 0.5"),
@@ -133,15 +136,12 @@ object ShizukuEngine {
         sh("dumpsys deviceidle force-idle")
     )
 
-    // ── AppOps: batasi aktivitas background app pihak-3 ─────────────────
     fun restrictBackground(): SCmd = sh(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
         "appops set \$pkg RUN_IN_BACKGROUND ignore; " +
         "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; " +
         "done; echo done"
     )
-
-    // ── Fixed Trim Memory Engine ──────────────────────────────────────
 
     fun trimMemory(): SCmd = sh(
         "cmd package trim-caches 999G 2>/dev/null; " +
@@ -155,16 +155,6 @@ object ShizukuEngine {
         sh("dumpsys deviceidle force-idle")
     )
 
-    fun setAnimScale(s: Float): SCmd = sh(
-        "settings put global window_animation_scale $s && " +
-        "settings put global transition_animation_scale $s && " +
-        "settings put global animator_duration_scale $s"
-    )
-
-    /** Dipakai toggle "Smooth UI" di Home — scope Shizuku sekarang lebih
-     *  luas dari sekadar anim scale: refresh rate & disable blur juga
-     *  genuinely jalan tanpa root. Yang TETAP root-only cuma setprop
-     *  SurfaceFlinger/Skia internal (RootEngine.applySmoothRenderingTweaks). */
     fun applySmoothRenderingTweaks(enable: Boolean, maxRefreshRate: Float = 90f): SCmd {
         return if (enable) sh(
             "settings put global window_animation_scale 0.5 && " +
@@ -185,9 +175,6 @@ object ShizukuEngine {
         )
     }
 
-    // ── Reset (scope terbatas — cuma yg genuinely bisa Shizuku sentuh) ──
-    // TIDAK bisa reset governor/sysctl kernel (butuh root beneran, sysfs
-    // /proc read-only buat shell UID). Jangan diklaim "full reset".
     fun resetToDefaults(): List<SCmd> = listOf(
         applySmoothRenderingTweaks(false),
         sh("cmd power set-fixed-performance-mode-enabled false"),
