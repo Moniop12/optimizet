@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
-import java.util.concurrent.TimeUnit
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
@@ -45,26 +44,39 @@ object RootEngine {
     // ── ROOT CHECK DENGAN TIMEOUT (Anti Hang Magisk/KernelSU) ──────────
     fun hasRoot(): Boolean = try {
         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
-        val completed = p.waitFor(3, TimeUnit.SECONDS)
-        if (!completed) {
-            p.destroyForcibly()
-            return false
+        
+        // Thread terpisah untuk kill proses jika timeout 3 detik
+        val worker = Thread {
+            try {
+                Thread.sleep(3000)
+                if (p.isAlive) p.destroyForcibly()
+            } catch (_: Exception) {}
         }
+        worker.isDaemon = true
+        worker.start()
+        
         val out = p.inputStream.bufferedReader().readText().trim()
-        out == "ok" && p.exitValue() == 0
+        val rc = p.waitFor()
+        out == "ok" && rc == 0
     } catch (_: Exception) { false }
 
     // ── EXEC SU DENGAN TIMEOUT ─────────────────────────────────────────
     fun su(cmd: String): CmdResult = try {
         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-        val completed = p.waitFor(5, TimeUnit.SECONDS)
-        if (!completed) {
-            p.destroyForcibly()
-            return CmdResult(false, "Command timeout", cmd)
+        
+        // Thread terpisah untuk kill proses jika timeout 5 detik
+        val worker = Thread {
+            try {
+                Thread.sleep(5000)
+                if (p.isAlive) p.destroyForcibly()
+            } catch (_: Exception) {}
         }
+        worker.isDaemon = true
+        worker.start()
+
         val out = p.inputStream.bufferedReader().readText().trim()
         val err = p.errorStream.bufferedReader().readText().trim()
-        val rc = p.exitValue()
+        val rc = p.waitFor()
         Log.d(T, "[$rc] $cmd")
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
