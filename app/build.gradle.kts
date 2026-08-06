@@ -50,10 +50,10 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Shizuku+-API (Mendukung ShizukuPlus & Original Rikka Shizuku)
-    implementation("com.github.thejaustin:Shizuku+-API:13.2.0-plus")
+    // FIX TYPO JITPACK: Menggunakan 'ShizukuPlus-API' (bukan 'Shizuku+-API')
+    implementation("com.github.thejaustin:ShizukuPlus-API:13.2.0-plus")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 
-    // Jetpack DataStore — persistent state
+    // Jetpack DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 }
