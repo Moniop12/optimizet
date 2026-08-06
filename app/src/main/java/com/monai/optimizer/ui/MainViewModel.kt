@@ -129,7 +129,6 @@ class MainViewModel : ViewModel() {
     var freezerActionPkg by mutableStateOf<String?>(null)
     private set
 
-    // Blacklist Paket Sistem Vital + IME (Keyboard) Aktif
     private val CRITICAL_PACKAGES = setOf(
         "android",
         "com.android.systemui",
@@ -233,15 +232,23 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // UI TICKER: Baca /proc/stat lokal (Tanpa Root) & fallback RAM lokal
-    // Data Root/Shizuku akan diupdate oleh Service notifikasi, bukan ViewModel.
-    // Ini menghemat baterai secara drastis.
+    // FIX: Baca /proc/stat via Shizuku jika tidak ada Root (Anti 0%)
     private fun startRealTimeTicker() {
         if (isTickerRunning) return
         isTickerRunning = true
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                val rawStat = runCatching { java.io.File("/proc/stat").readLines().firstOrNull { it.startsWith("cpu ") } }.getOrNull()
+                var rawStat: String? = null
+                
+                // Gunakan Shizuku/Root untuk baca stat jika ada, karena SELinux blokir app biasa
+                if (hasRoot) {
+                    rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
+                } else if (hasShizuku) {
+                    rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
+                } else {
+                    rawStat = runCatching { java.io.File("/proc/stat").readLines().firstOrNull { it.startsWith("cpu ") } }.getOrNull()
+                }
+
                 val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
                 val ramSnap = MonitorEngine.getRamSnapshot()
 
@@ -250,11 +257,10 @@ class MainViewModel : ViewModel() {
                     ramUsedPercent = ramSnap.usedPct
                     cpuUsagePct = cpuPct
                     
-                    // Update data UI dengan info lokal yang gratis (no root needed)
                     cpuFreq = MonitorEngine.getCpuFreqDisplay()
                     cpuTemp = MonitorEngine.getCpuTempDisplay()
                 }
-                delay(2000) // 2 detik aman untuk UI
+                delay(2000)
             }
         }
     }
@@ -576,7 +582,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ── FIX LOAD APP FREEZER (Deteksi Lengkap User & System Apps) ───────────
     fun loadFreezerApps(ctx: Context) {
         if (freezerLoading) return
         viewModelScope.launch(Dispatchers.IO) {
@@ -592,7 +597,6 @@ class MainViewModel : ViewModel() {
                 pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
             }.getOrNull()
 
-            // Deteksi IME (Keyboard) Aktif
             val activeIme = runCatching {
                 Settings.Secure.getString(ctx.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
             }.getOrNull()?.split("/")?.firstOrNull()
@@ -634,7 +638,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    // ── FIX TOGGLE FREEZE APP (Work untuk Shizuku & Root) ───────────────────
     fun toggleFreezeApp(ctx: Context, item: FrozenAppItem) {
         if (item.isCritical) {
             Toast.makeText(ctx, "System App ${item.name} is protected to prevent bootloops!", Toast.LENGTH_SHORT).show()

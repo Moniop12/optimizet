@@ -67,7 +67,7 @@ class MonAiService : Service() {
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
 
-        private const val MONITOR_INTERVAL_MS = 3000L // Naikkan ke 3 detik untuk hemat baterai
+        private const val MONITOR_INTERVAL_MS = 3000L
         private const val DUMPSYS_POLL_EVERY = 3
 
         @Volatile var currentActiveProfile: OptProfile? = null
@@ -194,7 +194,6 @@ class MonAiService : Service() {
             val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShz)
             val bat = getBatteryPowerInfo(this@MonAiService)
 
-            // BATCH READ: Hemat baterai, 1 command untuk 4 data
             var rawStat: String? = null
             var freq = "--"
             var temp = "--"
@@ -249,7 +248,6 @@ class MonAiService : Service() {
                 var temp = "--"
                 var rawStat: String? = null
 
-                // BATCH READ: 1 su call for all stats
                 if (cachedHasRoot) {
                     val batch = RootEngine.getSystemStatsBatch()
                     val parts = batch.split("|||")
@@ -451,7 +449,6 @@ class MonAiService : Service() {
 
             BatteryPowerInfo(isCharging, currentMa, pct, tempC)
         } catch (_: Exception) {
-            // FIX: Hilangkan data palsu, kembalikan 0 agar UI tidak menipu
             BatteryPowerInfo(false, 0, 0, 0.0)
         }
     }
@@ -508,7 +505,10 @@ class MonAiService : Service() {
 
         val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == "MonProject") "MonProject • Dashboard Active" else "MonProject • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
-        val ramAppStr = if (focus.appRamMb > 0) "${focus.appRamMb} MB" else "System"
+        
+        // FIX: Ambil Free RAM lokal, tidak butuh Root
+        val ramSnap = MonitorEngine.getRamSnapshot()
+        val ramAppStr = "${ramSnap.availMb} MB"
 
         val powerText = if (isChargePausedByLimit) {
             "Paused (Limit $chargeLimitPct%)"

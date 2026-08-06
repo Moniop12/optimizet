@@ -61,26 +61,23 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
             accent = EmeraldGlow,
             title = "Smart Charging & Bypass Power",
             subtitle = if (!vm.hasRoot) "Requires root access"
-                       else if (vm.isBypassChargingEnabled) "Bypass Charging ACTIVE (HP Dingin)"
-                       else if (vm.isChargeLimitEnabled) "Limit ${vm.chargeLimitPct.toInt()}% · ${vm.chargeSpeedMa} mA"
-                       else "Charge control idle",
+            else if (vm.isBypassChargingEnabled) "Bypass Charging ACTIVE (HP Dingin)"
+            else if (vm.isChargeLimitEnabled) "Limit ${vm.chargeLimitPct.toInt()}% · ${vm.chargeSpeedMa} mA"
+            else "Charge control idle",
             onClick = onOpenCharging
         )
 
         SectionLabel("APP MANAGEMENT")
-
-        // ── App Freezer Entry ────────────────────────────────────────────────
         NavSummaryCard(
-            icon     = Icons.Filled.AcUnit,
-            accent   = CleanPurple,
-            title    = "System App Freezer",
+            icon = Icons.Filled.AcUnit,
+            accent = CleanPurple,
+            title = "System App Freezer",
             subtitle = if (!hasControl) "Requires Shizuku or Root"
-                       else if (vm.freezerApps.isEmpty()) "Suspend apps to stop all background activity"
-                       else "${vm.freezerApps.count { it.isLocked }} frozen · ${vm.freezerApps.size} total apps",
-            onClick  = onOpenFreezer
+            else if (vm.freezerApps.isEmpty()) "Suspend apps to stop all background activity"
+            else "${vm.freezerApps.count { it.isLocked }} frozen · ${vm.freezerApps.size} total apps",
+            onClick = onOpenFreezer
         )
 
-        // ── FITUR BARU: App Standby Buckets Manager ─────────────────────────
         ToolActionRow(
             icon = Icons.Filled.Bedtime,
             title = "App Standby Buckets (Hibernation)",
@@ -109,7 +106,10 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
             ) { ShizukuEngine.restrictBackground() }
         }
 
-        // ── FITUR BARU: Resolution & DPI Scaler (Gaming Tuner) ────────────
+        // ── FITUR BARU ANTI GIMIK: System-Wide Private DNS ───────────────
+        SectionLabel("NETWORK & DNS TUNER")
+        PrivateDnsCard(vm)
+
         SectionLabel("GAMING DISPLAY TUNER")
         ResolutionScalerCard(vm, hasControl)
 
@@ -200,7 +200,7 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
                 HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    Text("Show App RAM Usage", color = TextPrimary, fontSize = 13.sp)
+                    Text("Show Free RAM Usage", color = TextPrimary, fontSize = 13.sp)
                     Switch(checked = vm.showNotifRam, onCheckedChange = { vm.toggleNotifRam() })
                 }
 
@@ -225,8 +225,51 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
     }
 }
 
-// ── COMPOSABLE BARU: Resolution & Density Tuner Card ────────────────
-// Modifikasi Composable ResolutionScalerCard di ToolsScreen.kt agar menggunakan dynamic scale:
+@Composable
+fun PrivateDnsCard(vm: MainViewModel) {
+    val ctx = LocalContext.current
+    AppCard {
+        Column(Modifier.padding(12.dp), Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(Icons.Filled.Dns, UtilityTeal, active = true)
+                Column(Modifier.weight(1f)) {
+                    Text("System-Wide Private DNS", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Route all DNS securely, block ads or speed up net", color = TextSecondary, fontSize = 11.sp)
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        vm.runTool(ctx, "dns_auto", "DNS Auto", "settings put global private_dns_mode opportunistic") {
+                            ShizukuEngine.sh("settings put global private_dns_mode opportunistic")
+                        }
+                    },
+                    label = { Text("Auto", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        vm.runTool(ctx, "dns_adg", "DNS AdGuard", "settings put global private_dns_mode hostname; settings put global private_dns_specifier dns.adguard.com") {
+                            ShizukuEngine.sh("settings put global private_dns_mode hostname; settings put global private_dns_specifier dns.adguard.com")
+                        }
+                    },
+                    label = { Text("AdGuard (Block Ads)", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        vm.runTool(ctx, "dns_cf", "DNS Cloudflare", "settings put global private_dns_mode hostname; settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com") {
+                            ShizukuEngine.sh("settings put global private_dns_mode hostname; settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com")
+                        }
+                    },
+                    label = { Text("Cloudflare (Fast)", fontSize = 11.sp) }
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun ResolutionScalerCard(vm: MainViewModel, enabled: Boolean) {
