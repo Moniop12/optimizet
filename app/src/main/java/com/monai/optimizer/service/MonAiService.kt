@@ -18,6 +18,7 @@ import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
 import com.monai.optimizer.data.UserPreferencesRepository
 import com.monai.optimizer.optimizer.ChargingEngine
+import com.monai.optimizer.optimizer.MonitorEngine
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.ShizukuEngine
@@ -45,7 +46,6 @@ class MonAiService : Service() {
     private var lastFocusInfo = AppFocusInfo("System Active", null, 0L)
     private var dumpsysPollTick = 0
 
-    // Dynamic Package Regex Parser untuk Samsung OneUI, HyperOS, dan Stock
     private val pkgRegex = Regex("""([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)""")
 
     private var tempNotifLogMsg: String? = null
@@ -142,7 +142,7 @@ class MonAiService : Service() {
             ACTION_START -> {
                 if (!isRunning) {
                     isRunning = true
-                    startForeground(NOTIF_ID, buildNotification(AppFocusInfo("Initializing...", null, 0L), "--", "--", BatteryPowerInfo(false, 0, 0, 0.0)))
+                    startForeground(NOTIF_ID, buildNotification(AppFocusInfo("Initializing...", null, 0L), "--", "--", 0, BatteryPowerInfo(false, 0, 0, 0.0)))
                     scope.launch { prefsRepo.setLiveServiceRunning(true) }
                     scope.launch { RootEngine.backupOriginalStateIfNeeded() }
                     startMonitoringLoop()
@@ -193,8 +193,14 @@ class MonAiService : Service() {
             val hasShz = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
             val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShz)
             val bat = getBatteryPowerInfo(this@MonAiService)
+
+            var rawStat: String? = null
+            if (hasRoot) rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
+            else if (hasShz) rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
+
+            val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), bat))
+            manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), cpuPct, bat))
         }
     }
 
@@ -210,17 +216,22 @@ class MonAiService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
-    // ── PERBAIKAN MONITORING LOOP: Cache Status HasRoot & HasShizuku (No CPU Spike) ──
+    // ── NOTIFIKASI SINKRON & DILENGKAPI REALTIME CPU USAGE (%) ──────────────
     private fun startMonitoringLoop() {
         scope.launch {
-            // Evaluasi sekali di luar loop agar tidak memicu `su` setiap 2 detik
             val cachedHasRoot = RootEngine.hasRoot()
             val cachedHasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
 
             while (isActive && isRunning) {
                 val focusInfo = getFocusedAppInfo(this@MonAiService, cachedHasRoot, cachedHasShizuku)
-                val cpuFreq = if (cachedHasRoot) RootEngine.getCpuFreqInfo() else "--"
-                val cpuTemp = if (cachedHasRoot) RootEngine.getCpuTemp() else "--"
+                val cpuFreq = if (cachedHasRoot) RootEngine.getCpuFreqInfo() else MonitorEngine.getCpuFreqDisplay()
+                val cpuTemp = if (cachedHasRoot) RootEngine.getCpuTemp() else MonitorEngine.getCpuTempDisplay()
+
+                var rawStat: String? = null
+                if (cachedHasRoot) rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
+                else if (cachedHasShizuku) rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
+
+                val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
                 if (cachedHasRoot && isChargeLimitEnabled) {
@@ -251,7 +262,7 @@ class MonAiService : Service() {
                     RootEngine.adaptiveMemoryTune(availRam)
                 }
 
-                val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, bat)
+                val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, cpuPct, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
@@ -326,7 +337,6 @@ class MonAiService : Service() {
         } catch (_: Exception) { null }
     }
 
-    // ── PERBAIKAN PARSING DUMPSYS WINDOW (Samsung OneUI & HyperOS Compatibility) ──
     private fun parsePackageFromDumpsys(output: String): String? {
         if (output.isBlank()) return null
         if (output.contains("/")) {
@@ -435,6 +445,7 @@ class MonAiService : Service() {
         focus: AppFocusInfo,
         cpuFreq: String,
         cpuTemp: String,
+        cpuUsagePct: Int,
         bat: BatteryPowerInfo
     ): Notification {
         val openAppIntent = PendingIntent.getActivity(
@@ -505,7 +516,7 @@ class MonAiService : Service() {
             setViewVisibility(R.id.txt_col_power, if (showNotifPower) View.VISIBLE else View.GONE)
 
             if (showNotifRam) setTextViewText(R.id.txt_col_ram, "RAM: $ramAppStr")
-            if (showNotifCpu) setTextViewText(R.id.txt_col_cpu, "CPU: $cpuFreq")
+            if (showNotifCpu) setTextViewText(R.id.txt_col_cpu, "CPU: $cpuUsagePct% • $cpuFreq")
             if (showNotifPower) {
                 setTextViewText(R.id.txt_col_power, "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA")
                 setTextColor(R.id.txt_col_power, powerColor)
@@ -521,7 +532,7 @@ class MonAiService : Service() {
             setViewVisibility(R.id.chip_power, if (showNotifPower) View.VISIBLE else View.GONE)
 
             if (showNotifRam) setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
-            if (showNotifCpu) setTextViewText(R.id.txt_exp_cpu_val, "$cpuFreq ($cpuTemp)")
+            if (showNotifCpu) setTextViewText(R.id.txt_exp_cpu_val, "$cpuUsagePct% • $cpuFreq ($cpuTemp)")
             if (showNotifPower) {
                 setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
                 setTextColor(R.id.txt_exp_power_val, powerColor)

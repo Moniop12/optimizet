@@ -14,12 +14,22 @@ object ShizukuEngine {
     private const val T = "ShizukuEngine"
     const val PERM_CODE = 1001
 
-    fun isRunning(): Boolean = try { Shizuku.pingBinder() } catch (_: Exception) { false }
-    fun hasPerm(): Boolean   = try {
-        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    fun isRunning(): Boolean = try {
+        Shizuku.pingBinder()
     } catch (_: Exception) { false }
 
-    fun requestPerm() { try { Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {} }
+    fun hasPerm(): Boolean = try {
+        if (!isRunning()) false
+        else Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    } catch (_: Exception) { false }
+
+    fun requestPerm() {
+        try {
+            if (isRunning()) {
+                Shizuku.requestPermission(PERM_CODE)
+            }
+        } catch (_: Exception) {}
+    }
 
     @Volatile private var service: IShellUserService? = null
     private val bindLock = Object()
@@ -56,7 +66,7 @@ object ShizukuEngine {
                 Log.e(T, "bindUserService failed", e)
                 return null
             }
-            val deadline = System.currentTimeMillis() + 4000
+            val deadline = System.currentTimeMillis() + 3000
             while (service == null && System.currentTimeMillis() < deadline) {
                 try { bindLock.wait(200) } catch (_: InterruptedException) {}
             }
@@ -66,7 +76,7 @@ object ShizukuEngine {
 
     fun sh(cmd: String): SCmd {
         val svc = ensureBound()
-            ?: return SCmd(false, "Shizuku service not available — pastikan Shizuku / ShizukuPlus berjalan", cmd)
+            ?: return SCmd(false, "Shizuku service not available — pastikan Shizuku / ShizukuPlus berjalan & izin diberikan", cmd)
         return try {
             val raw = svc.exec(cmd)
             val sep = raw.indexOf('\u0001')
@@ -179,10 +189,6 @@ object ShizukuEngine {
         sh("settings delete global background_process_limit"),
         sh("dumpsys deviceidle disable")
     )
-
-    // ── FIX APP FREEZER ENGINE (Universal ADB & Root Freeze Command) ────────
-    // Menggunakan `pm disable-user --user 0` & `pm suspend --user 0` yang
-    // 100% didukung oleh ADB Shell & Root.
 
     fun freezeApp(pkg: String): SCmd =
         sh("pm disable-user --user 0 $pkg 2>/dev/null || pm suspend --user 0 $pkg 2>/dev/null && echo frozen")

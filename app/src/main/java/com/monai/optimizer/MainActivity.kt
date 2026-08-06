@@ -21,27 +21,15 @@ class MainActivity : ComponentActivity() {
 
     private var onShizukuPermResult: (() -> Unit)? = null
 
-    // ── 1. Binder Received (KRITIS — ini yang hilang sebelumnya) ─────────
-    //
-    // Shizuku TIDAK otomatis deliver binder-nya ke app kita. App harus
-    // daftarkan listener ini dulu. Tanpa ini, Shizuku.pingBinder() selalu
-    // return false meskipun Shizuku / Shizuku+ jelas-jelas running.
-    //
-    // "Sticky" artinya: kalau Shizuku sudah running sebelum listener
-    // didaftarkan (misalnya app dibuka setelah Shizuku running),
-    // listener langsung terpanggil saat registrasi — tidak perlu tunggu
-    // event berikutnya.
+    // ── SHIZUKU BINDER & PERMISSION LISTENERS ──────────────────────────
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         onShizukuPermResult?.invoke()
     }
 
-    // ── 2. Binder Dead (Shizuku mati / restart) ──────────────────────────
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
-        // Binder mati — nanti saat Shizuku restart binderReceivedListener
-        // akan terpanggil lagi otomatis.
+        onShizukuPermResult?.invoke()
     }
 
-    // ── 3. Permission Result (user tap Allow/Deny di dialog Shizuku) ─────
     private val permResultListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
         onShizukuPermResult?.invoke()
     }
@@ -49,8 +37,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Urutan registrasi penting: daftarkan binder listener SEBELUM
-        // setContent agar binder sudah tersedia saat ViewModel pertama init.
+        // Urutan Registrasi Listener Terpenting
         Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(permResultListener)
@@ -64,12 +51,8 @@ class MainActivity : ComponentActivity() {
                     val vm: MainViewModel = viewModel()
                     val ctx = applicationContext
 
-                    // Callback yang dipanggil oleh ketiga listener di atas.
                     onShizukuPermResult = { vm.init(ctx) }
 
-                    // Re-check setiap kali app kembali ke foreground —
-                    // untuk mendeteksi: root baru di-grant, Shizuku distart
-                    // dari luar, atau permission baru dikasih.
                     val lifecycleOwner = LocalLifecycleOwner.current
                     DisposableEffect(lifecycleOwner) {
                         val observer = LifecycleEventObserver { _, event ->

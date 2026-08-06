@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import androidx.collection.LruCache
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,10 +34,15 @@ import androidx.compose.ui.unit.sp
 import com.monai.optimizer.optimizer.FrozenAppItem
 import com.monai.optimizer.ui.components.*
 import com.monai.optimizer.ui.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class FreezerFilter(val label: String) {
     ALL("All"), USER("User"), SYSTEM("System"), FROZEN("Frozen")
 }
+
+// ── MEMORY CACHE IKON (Super Smooth 60/120 FPS Scroll) ─────────────────
+private val iconCache = LruCache<String, ImageBitmap>(80)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -224,10 +230,21 @@ private fun FreezerAppItem(
     onToggle: () -> Unit
 ) {
     val ctx = LocalContext.current
-    val icon: ImageBitmap? = remember(item.pkg) {
-        runCatching {
-            ctx.packageManager.getApplicationIcon(item.pkg).toBitmap().asImageBitmap()
-        }.getOrNull()
+    var iconBitmap by remember(item.pkg) { mutableStateOf(iconCache.get(item.pkg)) }
+
+    // Loading Ikon Asinkronus di Background Thread (Anti Lag Scroll)
+    LaunchedEffect(item.pkg) {
+        if (iconBitmap == null) {
+            withContext(Dispatchers.IO) {
+                val loaded = runCatching {
+                    ctx.packageManager.getApplicationIcon(item.pkg).toBitmap().asImageBitmap()
+                }.getOrNull()
+                if (loaded != null) {
+                    iconCache.put(item.pkg, loaded)
+                    withContext(Dispatchers.Main) { iconBitmap = loaded }
+                }
+            }
+        }
     }
 
     val accentColor = when {
@@ -249,9 +266,9 @@ private fun FreezerAppItem(
                     .background(AppSurfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                if (icon != null) {
+                if (iconBitmap != null) {
                     Image(
-                        bitmap = icon,
+                        bitmap = iconBitmap!!,
                         contentDescription = item.name,
                         modifier = Modifier
                             .size(38.dp)
