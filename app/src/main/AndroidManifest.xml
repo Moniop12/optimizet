@@ -2,11 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Izin Penting untuk Query Semua App di Android 11+ (Fix App Freezer Kosong) -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission"/>
 
-    <!-- Izin Shizuku & ShizukuPlus / Sui Compatibility -->
+    <!-- Izin Shizuku Original & ShizukuPlus (thejaustin) -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
     <uses-permission android:name="dev.rikka.shizuku.permission.API_V23"/>
 

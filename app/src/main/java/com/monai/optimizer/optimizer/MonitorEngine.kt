@@ -13,7 +13,6 @@ object MonitorEngine {
     @Volatile private var prevIdle  = 0L
     @Volatile private var prevTotal = 0L
 
-    // ── CPU Usage % (Dukungan Universal SELinux Fallback) ────────────────
     fun getCpuUsagePercent(rawProcStatOverride: String? = null): Int {
         return try {
             val line = if (!rawProcStatOverride.isNullOrBlank()) {

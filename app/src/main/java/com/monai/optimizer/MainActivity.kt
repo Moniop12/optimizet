@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
 
     private var onShizukuPermResult: (() -> Unit)? = null
 
-    // ── SHIZUKU BINDER & PERMISSION LISTENERS ──────────────────────────
+    // ── STICKY LISTENERS SHIZUKU / SHIZUKUPLUS ─────────────────────────
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         onShizukuPermResult?.invoke()
     }
@@ -37,7 +37,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Urutan Registrasi Listener Terpenting
         Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
         Shizuku.addBinderDeadListener(binderDeadListener)
         Shizuku.addRequestPermissionResultListener(permResultListener)

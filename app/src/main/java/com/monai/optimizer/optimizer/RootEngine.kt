@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
-import java.util.concurrent.TimeUnit
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
@@ -39,17 +38,12 @@ object RootEngine {
         if (appContext == null) appContext = context.applicationContext
     }
 
-    // ── PERBAIKAN TIMEOUT ROOT CHECK (Anti Hang / Freeze) ──────────────────
+    // ── ROOT CHECK (Aman Magisk & KernelSU Prompt — No Timeout Kill) ────
     fun hasRoot(): Boolean = try {
         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
-        val completed = p.waitFor(1500, TimeUnit.MILLISECONDS)
-        if (completed) {
-            val out = p.inputStream.bufferedReader().readLine() ?: ""
-            out.trim() == "ok"
-        } else {
-            p.destroy()
-            false
-        }
+        val out = p.inputStream.bufferedReader().readLine() ?: ""
+        p.waitFor()
+        out.trim() == "ok"
     } catch (_: Exception) { false }
 
     fun su(cmd: String): CmdResult = try {

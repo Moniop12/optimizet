@@ -216,7 +216,6 @@ class MonAiService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
-    // ── NOTIFIKASI SINKRON & DILENGKAPI REALTIME CPU USAGE (%) ──────────────
     private fun startMonitoringLoop() {
         scope.launch {
             val cachedHasRoot = RootEngine.hasRoot()

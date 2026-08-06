@@ -5,11 +5,16 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
+import af.shizuku.plus.api.ShizukuPlusAPI
 import com.monai.optimizer.IShellUserService
 import rikka.shizuku.Shizuku
 
 data class SCmd(val success: Boolean, val output: String, val cmd: String)
 
+/**
+ * Unified Dual-Support Engine:
+ * Mendukung ShizukuPlus (thejaustin) & Shizuku Original (Rikka) secara otomatis.
+ */
 object ShizukuEngine {
     private const val T = "ShizukuEngine"
     const val PERM_CODE = 1001
@@ -66,17 +71,38 @@ object ShizukuEngine {
                 Log.e(T, "bindUserService failed", e)
                 return null
             }
-            val deadline = System.currentTimeMillis() + 3000
+            val deadline = System.currentTimeMillis() + 2500
             while (service == null && System.currentTimeMillis() < deadline) {
-                try { bindLock.wait(200) } catch (_: InterruptedException) {}
+                try { bindLock.wait(150) } catch (_: InterruptedException) {}
             }
             return service
         }
     }
 
+    /**
+     * Eksekusi Shell Cerdas:
+     * 1. Coba eksekusi via ShizukuPlusAPI (Jalur Utama ShizukuPlus).
+     * 2. Jika bukan ShizukuPlus, otomatis fallback ke AIDL (Jalur Standar Shizuku Rikka).
+     */
     fun sh(cmd: String): SCmd {
+        if (!isRunning() || !hasPerm()) {
+            return SCmd(false, "Shizuku / ShizukuPlus service not available", cmd)
+        }
+
+        // 1. Jalur ShizukuPlus API
+        try {
+            val plusResult = ShizukuPlusAPI.executeShell(cmd)
+            if (plusResult != null && (plusResult.isSuccess || plusResult.exitCode == 0)) {
+                Log.d(T, "[SHZ+ ${plusResult.exitCode}] $cmd")
+                return SCmd(true, plusResult.output ?: "ok", cmd)
+            }
+        } catch (_: Throwable) {
+            // Jika bukan server ShizukuPlus, lanjut ke jalur standar Rikka AIDL
+        }
+
+        // 2. Jalur Fallback Rikka Shizuku AIDL
         val svc = ensureBound()
-            ?: return SCmd(false, "Shizuku service not available — pastikan Shizuku / ShizukuPlus berjalan & izin diberikan", cmd)
+            ?: return SCmd(false, "Failed to bind UserService on Shizuku", cmd)
         return try {
             val raw = svc.exec(cmd)
             val sep = raw.indexOf('\u0001')
