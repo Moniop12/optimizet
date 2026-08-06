@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import java.util.concurrent.TimeUnit
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
 
@@ -30,6 +31,9 @@ object RootEngine {
         val DIRTY_RATIO = stringPreferencesKey("backup_dirty_ratio")
         val DIRTY_BG_RATIO = stringPreferencesKey("backup_dirty_bg_ratio")
         val VFS_CACHE_PRESSURE = stringPreferencesKey("backup_vfs_cache_pressure")
+        val ANIM_SCALE = stringPreferencesKey("backup_anim_scale")
+        val TRANSITION_SCALE = stringPreferencesKey("backup_transition_scale")
+        val DURATION_SCALE = stringPreferencesKey("backup_duration_scale")
     }
 
     private var appContext: Context? = null
@@ -38,19 +42,29 @@ object RootEngine {
         if (appContext == null) appContext = context.applicationContext
     }
 
-    // ── ROOT CHECK (Aman Magisk & KernelSU Prompt — No Timeout Kill) ────
+    // ── ROOT CHECK DENGAN TIMEOUT (Anti Hang Magisk/KernelSU) ──────────
     fun hasRoot(): Boolean = try {
         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
-        val out = p.inputStream.bufferedReader().readLine() ?: ""
-        p.waitFor()
-        out.trim() == "ok"
+        val completed = p.waitFor(3, TimeUnit.SECONDS)
+        if (!completed) {
+            p.destroyForcibly()
+            return false
+        }
+        val out = p.inputStream.bufferedReader().readText().trim()
+        out == "ok" && p.exitValue() == 0
     } catch (_: Exception) { false }
 
+    // ── EXEC SU DENGAN TIMEOUT ─────────────────────────────────────────
     fun su(cmd: String): CmdResult = try {
         val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+        val completed = p.waitFor(5, TimeUnit.SECONDS)
+        if (!completed) {
+            p.destroyForcibly()
+            return CmdResult(false, "Command timeout", cmd)
+        }
         val out = p.inputStream.bufferedReader().readText().trim()
         val err = p.errorStream.bufferedReader().readText().trim()
-        val rc = p.waitFor()
+        val rc = p.exitValue()
         Log.d(T, "[$rc] $cmd")
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
@@ -69,12 +83,17 @@ object RootEngine {
             return CmdResult(false, "Governor $gov is not supported by kernel", "setGov $gov")
         }
         val cmd = "chmod 666 /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null; " +
-                  "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
+                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
         return su(cmd)
     }
 
     private fun readSysctl(key: String): String {
         val r = su("sysctl -n $key 2>/dev/null")
+        return r.output.trim()
+    }
+
+    private fun readSettings(namespace: String, key: String): String {
+        val r = su("settings get $namespace $key 2>/dev/null")
         return r.output.trim()
     }
 
@@ -90,6 +109,9 @@ object RootEngine {
         val dirty = readSysctl("vm.dirty_ratio").ifBlank { "20" }
         val dirtyBg = readSysctl("vm.dirty_background_ratio").ifBlank { "10" }
         val vfs = readSysctl("vm.vfs_cache_pressure").ifBlank { "100" }
+        val anim = readSettings("global", "window_animation_scale").ifBlank { "1.0" }
+        val trans = readSettings("global", "transition_animation_scale").ifBlank { "1.0" }
+        val dur = readSettings("global", "animator_duration_scale").ifBlank { "1.0" }
 
         ctx.kernelBackupStore.edit { prefs ->
             prefs[BackupKeys.GOVERNOR] = gov
@@ -97,9 +119,12 @@ object RootEngine {
             prefs[BackupKeys.DIRTY_RATIO] = dirty
             prefs[BackupKeys.DIRTY_BG_RATIO] = dirtyBg
             prefs[BackupKeys.VFS_CACHE_PRESSURE] = vfs
+            prefs[BackupKeys.ANIM_SCALE] = anim
+            prefs[BackupKeys.TRANSITION_SCALE] = trans
+            prefs[BackupKeys.DURATION_SCALE] = dur
             prefs[BackupKeys.DONE] = true
         }
-        Log.d(T, "Backed up original state: gov=$gov swap=$swap")
+        Log.d(T, "Backed up original state successfully.")
     }
 
     suspend fun getBackupSnapshot(): KernelBackupSnapshot? {
@@ -139,20 +164,13 @@ object RootEngine {
         }
     }
 
-    fun restrictBackground(): CmdResult = su(
-        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
-        "appops set \$pkg RUN_IN_BACKGROUND ignore; " +
-        "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; " +
-        "done; echo done"
-    )
-
     fun applyPerformance(maxRefreshRate: Float = 90f): List<CmdResult> {
         val avail = getGovernors()
         val targetGov = if (avail.contains("performance")) "performance" else avail.firstOrNull() ?: "schedutil"
         return listOf(
             setGovernor(targetGov),
             applySmoothRenderingTweaks(true, maxRefreshRate),
-            su("cmd power set-fixed-performance-mode-enabled true"),
+            su("cmd power set-fixed-performance-mode-enabled true 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=10"),
             su("sysctl -w vm.dirty_ratio=30"),
             su("sysctl -w vm.vfs_cache_pressure=50")
@@ -165,7 +183,7 @@ object RootEngine {
         return listOf(
             setGovernor(targetGov),
             applySmoothRenderingTweaks(true, maxRefreshRate),
-            su("cmd power set-fixed-performance-mode-enabled false"),
+            su("cmd power set-fixed-performance-mode-enabled false 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=30"),
             su("sysctl -w vm.dirty_ratio=20"),
             su("sysctl -w vm.vfs_cache_pressure=80")
@@ -178,7 +196,7 @@ object RootEngine {
         return listOf(
             setGovernor(targetGov),
             applySmoothRenderingTweaks(false),
-            su("cmd power set-fixed-performance-mode-enabled false"),
+            su("cmd power set-fixed-performance-mode-enabled false 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=60"),
             su("sysctl -w vm.dirty_ratio=10"),
             su("dumpsys deviceidle force-idle 2>/dev/null || true")
@@ -186,6 +204,7 @@ object RootEngine {
     }
 
     suspend fun resetToDefaults(): List<CmdResult> {
+        val ctx = appContext ?: return emptyList()
         val snap = getBackupSnapshot()
         val avail = getGovernors()
 
@@ -199,10 +218,19 @@ object RootEngine {
         val dirtyBgRatio = snap?.dirtyBackgroundRatio ?: "10"
         val vfsCachePressure = snap?.vfsCachePressure ?: "100"
 
+        // Baca anim scale dari backup, fallback ke 1.0
+        val prefs = ctx.kernelBackupStore.data.first()
+        val animScale = prefs[BackupKeys.ANIM_SCALE] ?: "1.0"
+        val transScale = prefs[BackupKeys.TRANSITION_SCALE] ?: "1.0"
+        val durScale = prefs[BackupKeys.DURATION_SCALE] ?: "1.0"
+
         return listOf(
             setGovernor(defaultGov),
-            applySmoothRenderingTweaks(false),
-            su("cmd power set-fixed-performance-mode-enabled false"),
+            su("settings put global window_animation_scale $animScale"),
+            su("settings put global transition_animation_scale $transScale"),
+            su("settings put global animator_duration_scale $durScale"),
+            su("settings delete system peak_refresh_rate; settings delete system min_refresh_rate"),
+            su("cmd power set-fixed-performance-mode-enabled false 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=$swappiness"),
             su("sysctl -w vm.dirty_ratio=$dirtyRatio"),
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),
@@ -212,21 +240,14 @@ object RootEngine {
         )
     }
 
-    fun getCpuFreqInfo(): String {
-        val cur = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
-        val max = su("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null").output.trim().toLongOrNull()?.div(1000L) ?: 0L
-        return if (max > 0) "${cur}/${max}MHz" else "N/A"
-    }
-
-    fun getCpuTemp(): String {
-        val cmd = "for z in /sys/class/thermal/thermal_zone*/temp; do [ -f \$z ] && cat \$z 2>/dev/null && break; done"
-        val r = su(cmd)
-        if (r.success && r.output.isNotBlank()) {
-            val raw = r.output.lines().firstOrNull()?.trim()?.toDoubleOrNull() ?: return "N/A"
-            val c = if (raw > 1000.0) raw / 1000.0 else raw
-            if (c in 10.0..95.0) return "%.1f°C".format(c)
-        }
-        return "N/A"
+    // BATCH READ: Menggabungkan beberapa bacaan jadi 1 eksekusi su (Hemat Baterai)
+    fun getSystemStatsBatch(): String {
+        // Format: stat|||freq|||temp|||gov
+        val cmd = "cat /proc/stat 2>/dev/null | head -n 1; echo '|||'; " +
+                "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null; echo '|||'; " +
+                "cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -n 1; echo '|||'; " +
+                "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null"
+        return su(cmd).output
     }
 
     fun getZramInfo(): String {

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import android.widget.Toast
@@ -45,90 +46,90 @@ data class LogEntry(val time: String, val cmd: String, val success: Boolean)
 class MainViewModel : ViewModel() {
 
     var spec by mutableStateOf<DeviceSpec?>(null)
-        private set
+    private set
     var hasRoot by mutableStateOf(false)
-        private set
+    private set
     var hasShizuku by mutableStateOf(false)
-        private set
+    private set
     var isOptimizing by mutableStateOf(false)
-        private set
+    private set
     var isRefreshing by mutableStateOf(false)
-        private set
+    private set
     var isLiveServiceRunning by mutableStateOf(false)
-        private set
+    private set
     var progress by mutableFloatStateOf(0f)
-        private set
+    private set
     var statusMsg by mutableStateOf("")
     var statusSuccess by mutableStateOf<Boolean?>(null)
-        private set
+    private set
     var activeProfile by mutableStateOf<OptProfile?>(null)
-        private set
+    private set
     var log by mutableStateOf<List<LogEntry>>(emptyList())
-        private set
+    private set
 
     var isChargeLimitEnabled by mutableStateOf(false)
-        private set
+    private set
     var chargeLimitPct by mutableStateOf(80f)
-        private set
+    private set
     var chargeSpeedMa by mutableStateOf(UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA)
-        private set
+    private set
     var isThermalProtectEnabled by mutableStateOf(false)
-        private set
+    private set
     var isBypassChargingEnabled by mutableStateOf(false)
-        private set
+    private set
 
     var aiOptimizerEnabled by mutableStateOf(false)
-        private set
+    private set
 
     var resolutionPreset by mutableStateOf("NATIVE")
-        private set
+    private set
 
     var nativeWidth by mutableStateOf(1080)
-        private set
+    private set
     var nativeHeight by mutableStateOf(2400)
-        private set
+    private set
     var nativeDensity by mutableStateOf(400)
-        private set
+    private set
 
     var showNotifRam by mutableStateOf(true)
-        private set
+    private set
     var showNotifCpu by mutableStateOf(true)
-        private set
+    private set
     var showNotifPower by mutableStateOf(true)
-        private set
+    private set
     var showNotifProfiles by mutableStateOf(true)
-        private set
+    private set
 
     val runningTools = mutableStateMapOf<String, Boolean>()
 
     var cpuFreq by mutableStateOf("--")
-        private set
+    private set
     var cpuTemp by mutableStateOf("--")
-        private set
+    private set
     var zramInfo by mutableStateOf("--")
-        private set
+    private set
     var governors by mutableStateOf<List<String>>(emptyList())
-        private set
+    private set
     var currentGov by mutableStateOf("--")
-        private set
+    private set
     var liveAvailRamMb by mutableStateOf(0L)
-        private set
+    private set
     var ramUsedPercent by mutableStateOf(0)
-        private set
+    private set
     var cacheSizeMb by mutableStateOf(0L)
-        private set
+    private set
 
     var cpuUsagePct by mutableStateOf(0)
-        private set
+    private set
 
     var freezerApps by mutableStateOf<List<FrozenAppItem>>(emptyList())
-        private set
+    private set
     var freezerLoading by mutableStateOf(false)
-        private set
+    private set
     var freezerActionPkg by mutableStateOf<String?>(null)
-        private set
+    private set
 
-    // Blacklist Paket Sistem Vital untuk Mencegah Bootloop / HP Brick
+    // Blacklist Paket Sistem Vital + IME (Keyboard) Aktif
     private val CRITICAL_PACKAGES = setOf(
         "android",
         "com.android.systemui",
@@ -142,7 +143,10 @@ class MainViewModel : ViewModel() {
         "com.android.permissioncontroller",
         "com.google.android.permissioncontroller",
         "com.google.android.gms",
-        "com.google.android.gsf"
+        "com.google.android.gsf",
+        "com.android.inputmethod",
+        "com.android.wallpaperbackup",
+        "com.android.wallpapercropper"
     )
 
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -199,7 +203,7 @@ class MainViewModel : ViewModel() {
                 withContext(Dispatchers.Main) { governors = gvs }
             }
 
-            startRealTimeTicker(ctx)
+            startRealTimeTicker()
         }
     }
 
@@ -229,52 +233,28 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private fun startRealTimeTicker(ctx: Context) {
+    // UI TICKER: Baca /proc/stat lokal (Tanpa Root) & fallback RAM lokal
+    // Data Root/Shizuku akan diupdate oleh Service notifikasi, bukan ViewModel.
+    // Ini menghemat baterai secara drastis.
+    private fun startRealTimeTicker() {
         if (isTickerRunning) return
         isTickerRunning = true
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                // Fallback Shell jika SELinux memblokir /proc/stat langsung
-                var rawStat: String? = null
-                if (hasRoot) {
-                    rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
-                } else if (hasShizuku) {
-                    rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
-                }
-
-                val cpuPct  = MonitorEngine.getCpuUsagePercent(rawStat)
+                val rawStat = runCatching { java.io.File("/proc/stat").readLines().firstOrNull { it.startsWith("cpu ") } }.getOrNull()
+                val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
                 val ramSnap = MonitorEngine.getRamSnapshot()
-
-                val monFreqDisplay = MonitorEngine.getCpuFreqDisplay()
-                val monTempDisplay = MonitorEngine.getCpuTempDisplay()
-
-                var fr    = monFreqDisplay
-                var tp    = monTempDisplay
-                var zr    = "--"
-                var gv    = "--"
-                var cSize = 0L
-
-                if (hasRoot) {
-                    val rootFr = RootEngine.getCpuFreqInfo()
-                    val rootTp = RootEngine.getCpuTemp()
-                    if (rootFr != "N/A") fr = rootFr
-                    if (rootTp != "N/A") tp = rootTp
-                    zr    = RootEngine.getZramInfo()
-                    gv    = RootEngine.getCurrentGovernor()
-                    cSize = RootEngine.getEstimatedCacheSizeMb()
-                }
 
                 withContext(Dispatchers.Main) {
                     liveAvailRamMb = ramSnap.availMb
                     ramUsedPercent = ramSnap.usedPct
-                    cpuUsagePct    = cpuPct
-                    cpuFreq        = fr
-                    cpuTemp        = tp
-                    zramInfo       = zr
-                    currentGov     = gv
-                    cacheSizeMb    = cSize
+                    cpuUsagePct = cpuPct
+                    
+                    // Update data UI dengan info lokal yang gratis (no root needed)
+                    cpuFreq = MonitorEngine.getCpuFreqDisplay()
+                    cpuTemp = MonitorEngine.getCpuTempDisplay()
                 }
-                delay(1500)
+                delay(2000) // 2 detik aman untuk UI
             }
         }
     }
@@ -518,7 +498,7 @@ class MainViewModel : ViewModel() {
                     val res = RootEngine.resetToDefaults()
                     newLog = res.map { LogEntry(sdf.format(Date()), it.cmd, it.success) }
                     resultMsg = if (res.all { it.success }) "Reset to factory defaults (Root — full)"
-                                else "Reset partially failed — check Log"
+                    else "Reset partially failed — check Log"
                 }
                 hasShizuku -> {
                     val res = ShizukuEngine.resetToDefaults()
@@ -604,7 +584,7 @@ class MainViewModel : ViewModel() {
 
             val disabledPkgs = if (hasShizuku || hasRoot) ShizukuEngine.listDisabledPkgs() else emptySet()
 
-            val pm   = ctx.packageManager
+            val pm = ctx.packageManager
             val pkgs = runCatching { pm.getInstalledPackages(0) }.getOrElse { emptyList() }
 
             val defaultLauncherPkg = runCatching {
@@ -612,37 +592,43 @@ class MainViewModel : ViewModel() {
                 pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
             }.getOrNull()
 
+            // Deteksi IME (Keyboard) Aktif
+            val activeIme = runCatching {
+                Settings.Secure.getString(ctx.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+            }.getOrNull()?.split("/")?.firstOrNull()
+
             val items = pkgs
                 .filter { it.packageName != ctx.packageName }
                 .mapNotNull { pi ->
-                    val appInfo  = pi.applicationInfo ?: return@mapNotNull null
-                    val label    = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrElse { pi.packageName }
+                    val appInfo = pi.applicationInfo ?: return@mapNotNull null
+                    val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrElse { pi.packageName }
                     val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
                     val isCritical = CRITICAL_PACKAGES.contains(pi.packageName) ||
-                                     pi.packageName == defaultLauncherPkg ||
-                                     pi.packageName.startsWith("com.android.providers")
+                    pi.packageName == defaultLauncherPkg ||
+                    pi.packageName == activeIme ||
+                    pi.packageName.startsWith("com.android.providers")
 
                     val isDisabled = !appInfo.enabled || pi.packageName in disabledPkgs
 
                     FrozenAppItem(
-                        name       = label,
-                        pkg        = pi.packageName,
-                        isSystem   = isSystem,
-                        isFrozen   = isDisabled,
+                        name = label,
+                        pkg = pi.packageName,
+                        isSystem = isSystem,
+                        isFrozen = isDisabled,
                         isDisabled = isDisabled,
                         isCritical = isCritical
                     )
                 }
                 .sortedWith(
                     compareBy<FrozenAppItem> { !it.isLocked }
-                        .thenBy { it.isCritical }
-                        .thenBy { it.isSystem }
-                        .thenBy { it.name.lowercase() }
+                    .thenBy { it.isCritical }
+                    .thenBy { it.isSystem }
+                    .thenBy { it.name.lowercase() }
                 )
 
             withContext(Dispatchers.Main) {
-                freezerApps  = items
+                freezerApps = items
                 freezerLoading = false
             }
         }
@@ -664,7 +650,7 @@ class MainViewModel : ViewModel() {
                 SCmd(rootRes.success, rootRes.output, rootRes.cmd)
             } else {
                 if (item.isLocked) ShizukuEngine.unfreezeApp(item.pkg)
-                else               ShizukuEngine.freezeApp(item.pkg)
+                else ShizukuEngine.freezeApp(item.pkg)
             }
 
             withContext(Dispatchers.Main) {
@@ -674,7 +660,7 @@ class MainViewModel : ViewModel() {
                     if (app.pkg == item.pkg) app.copy(isFrozen = nowFrozen, isDisabled = nowFrozen)
                     else app
                 }
-                statusMsg     = if (nowFrozen) "${item.name} frozen" else "${item.name} unfrozen"
+                statusMsg = if (nowFrozen) "${item.name} frozen" else "${item.name} unfrozen"
                 statusSuccess = true
                 log = listOf(LogEntry(sdf.format(Date()), r.cmd, r.success)) + log
             }

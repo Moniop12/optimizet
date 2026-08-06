@@ -10,16 +10,11 @@ import rikka.shizuku.Shizuku
 
 data class SCmd(val success: Boolean, val output: String, val cmd: String)
 
-/**
- * Engine Kompatibel untuk Shizuku Original, ShizukuPlus (thejaustin), dan Sui.
- */
 object ShizukuEngine {
     private const val T = "ShizukuEngine"
     const val PERM_CODE = 1001
 
-    fun isRunning(): Boolean = try {
-        Shizuku.pingBinder()
-    } catch (_: Exception) { false }
+    fun isRunning(): Boolean = try { Shizuku.pingBinder() } catch (_: Exception) { false }
 
     fun hasPerm(): Boolean = try {
         if (!isRunning()) false
@@ -27,11 +22,7 @@ object ShizukuEngine {
     } catch (_: Exception) { false }
 
     fun requestPerm() {
-        try {
-            if (isRunning()) {
-                Shizuku.requestPermission(PERM_CODE)
-            }
-        } catch (_: Exception) {}
+        try { if (isRunning()) Shizuku.requestPermission(PERM_CODE) } catch (_: Exception) {}
     }
 
     @Volatile private var service: IShellUserService? = null
@@ -78,8 +69,7 @@ object ShizukuEngine {
     }
 
     fun sh(cmd: String): SCmd {
-        val svc = ensureBound()
-            ?: return SCmd(false, "Shizuku / ShizukuPlus service not available", cmd)
+        val svc = ensureBound() ?: return SCmd(false, "Shizuku service not available", cmd)
         return try {
             val raw = svc.exec(cmd)
             val sep = raw.indexOf('\u0001')
@@ -92,6 +82,15 @@ object ShizukuEngine {
             synchronized(bindLock) { service = null }
             SCmd(false, e.message ?: "error", cmd)
         }
+    }
+
+    // BATCH READ: Menggabungkan beberapa bacaan jadi 1 eksekusi sh (Hemat Baterai)
+    fun getSystemStatsBatch(): String {
+        val cmd = "cat /proc/stat 2>/dev/null | head -n 1; echo '|||'; " +
+                "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null; echo '|||'; " +
+                "cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -n 1; echo '|||'; " +
+                "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null"
+        return sh(cmd).output
     }
 
     fun setStandbyBucketsRestricted(): SCmd = sh(
@@ -117,7 +116,6 @@ object ShizukuEngine {
         sh("settings put system min_refresh_rate $maxRefreshRate"),
         sh("settings put global disable_window_blurs 1"),
         sh("settings put global accessibility_reduce_transparency 1"),
-        sh("cmd power set-fixed-performance-mode-enabled true"),
         sh("settings put global background_process_limit 6"),
         sh("settings put global wifi_scan_throttle_enabled 1")
     )
@@ -130,7 +128,6 @@ object ShizukuEngine {
         sh("settings put system min_refresh_rate $maxRefreshRate"),
         sh("settings put global disable_window_blurs 1"),
         sh("settings put global accessibility_reduce_transparency 1"),
-        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings put global background_process_limit 5")
     )
 
@@ -142,15 +139,14 @@ object ShizukuEngine {
         sh("settings delete system min_refresh_rate"),
         sh("settings put global disable_window_blurs 0"),
         sh("settings put global accessibility_reduce_transparency 0"),
-        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings put global background_process_limit 3"),
         sh("dumpsys deviceidle force-idle")
     )
 
     fun restrictBackground(): SCmd = sh(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
-        "appops set \$pkg RUN_IN_BACKGROUND ignore; " +
-        "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; " +
+        "appops set \$pkg RUN_IN_BACKGROUND ignore 2>/dev/null; " +
+        "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; " +
         "done; echo done"
     )
 
@@ -188,16 +184,16 @@ object ShizukuEngine {
 
     fun resetToDefaults(): List<SCmd> = listOf(
         applySmoothRenderingTweaks(false),
-        sh("cmd power set-fixed-performance-mode-enabled false"),
         sh("settings delete global background_process_limit"),
         sh("dumpsys deviceidle disable")
     )
 
+    // FIX: Logika if/elif/else agar exit code mencerminkan hasil asli
     fun freezeApp(pkg: String): SCmd =
-        sh("pm disable-user --user 0 $pkg 2>/dev/null || pm suspend --user 0 $pkg 2>/dev/null && echo frozen")
+        sh("if pm disable-user --user 0 $pkg 2>/dev/null; then echo frozen; elif pm suspend --user 0 $pkg 2>/dev/null; then echo frozen; else echo failed; fi")
 
     fun unfreezeApp(pkg: String): SCmd =
-        sh("pm enable --user 0 $pkg 2>/dev/null || pm unsuspend --user 0 $pkg 2>/dev/null && echo active")
+        sh("if pm enable --user 0 $pkg 2>/dev/null; then echo active; elif pm unsuspend --user 0 $pkg 2>/dev/null; then echo active; else echo failed; fi")
 
     fun listDisabledPkgs(): Set<String> {
         val raw = sh("pm list packages -d 2>/dev/null").output

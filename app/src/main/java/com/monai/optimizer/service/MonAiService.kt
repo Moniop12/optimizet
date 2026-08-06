@@ -48,13 +48,13 @@ class MonAiService : Service() {
 
     private val pkgRegex = Regex("""([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)""")
 
-    private var tempNotifLogMsg: String? = null
+    @Volatile private var tempNotifLogMsg: String? = null
     private var tempLogJob: Job? = null
 
-    private var showNotifRam = true
-    private var showNotifCpu = true
-    private var showNotifPower = true
-    private var showNotifProfiles = true
+    @Volatile private var showNotifRam = true
+    @Volatile private var showNotifCpu = true
+    @Volatile private var showNotifPower = true
+    @Volatile private var showNotifProfiles = true
 
     companion object {
         const val CHANNEL_ID = "monai_live_channel"
@@ -67,19 +67,19 @@ class MonAiService : Service() {
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
 
-        private const val MONITOR_INTERVAL_MS = 2500L
+        private const val MONITOR_INTERVAL_MS = 3000L // Naikkan ke 3 detik untuk hemat baterai
         private const val DUMPSYS_POLL_EVERY = 3
 
-        var currentActiveProfile: OptProfile? = null
+        @Volatile var currentActiveProfile: OptProfile? = null
 
-        var isChargeLimitEnabled = false
-        var chargeLimitPct = 80
-        var chargeSpeedMa = UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA
-        var isThermalProtectEnabled = false
-        var isChargePausedByLimit = false
-        var isThermalThrottled = false
+        @Volatile var isChargeLimitEnabled = false
+        @Volatile var chargeLimitPct = 80
+        @Volatile var chargeSpeedMa = UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA
+        @Volatile var isThermalProtectEnabled = false
+        @Volatile var isChargePausedByLimit = false
+        @Volatile var isThermalThrottled = false
 
-        var aiOptimizerEnabled = false
+        @Volatile var aiOptimizerEnabled = false
 
         fun restoreChargingFailSafe() {
             try {
@@ -194,13 +194,34 @@ class MonAiService : Service() {
             val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShz)
             val bat = getBatteryPowerInfo(this@MonAiService)
 
+            // BATCH READ: Hemat baterai, 1 command untuk 4 data
             var rawStat: String? = null
-            if (hasRoot) rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
-            else if (hasShz) rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
+            var freq = "--"
+            var temp = "--"
+            
+            if (hasRoot) {
+                val batch = RootEngine.getSystemStatsBatch()
+                val parts = batch.split("|||")
+                if (parts.size == 4) {
+                    rawStat = parts[0]
+                    freq = parts[1].trim().toLongOrNull()?.div(1000L)?.let { "${it}MHz" } ?: "--"
+                    val rawTemp = parts[2].trim().toFloatOrNull() ?: 0f
+                    temp = if (rawTemp > 0f) "%.1f°C".format(if (rawTemp > 1000f) rawTemp / 1000f else rawTemp) else "--"
+                }
+            } else if (hasShz) {
+                val batch = ShizukuEngine.getSystemStatsBatch()
+                val parts = batch.split("|||")
+                if (parts.size == 4) {
+                    rawStat = parts[0]
+                    freq = parts[1].trim().toLongOrNull()?.div(1000L)?.let { "${it}MHz" } ?: "--"
+                    val rawTemp = parts[2].trim().toFloatOrNull() ?: 0f
+                    temp = if (rawTemp > 0f) "%.1f°C".format(if (rawTemp > 1000f) rawTemp / 1000f else rawTemp) else "--"
+                }
+            }
 
             val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(NOTIF_ID, buildNotification(focusInfo, RootEngine.getCpuFreqInfo(), RootEngine.getCpuTemp(), cpuPct, bat))
+            manager.notify(NOTIF_ID, buildNotification(focusInfo, freq, temp, cpuPct, bat))
         }
     }
 
@@ -223,12 +244,31 @@ class MonAiService : Service() {
 
             while (isActive && isRunning) {
                 val focusInfo = getFocusedAppInfo(this@MonAiService, cachedHasRoot, cachedHasShizuku)
-                val cpuFreq = if (cachedHasRoot) RootEngine.getCpuFreqInfo() else MonitorEngine.getCpuFreqDisplay()
-                val cpuTemp = if (cachedHasRoot) RootEngine.getCpuTemp() else MonitorEngine.getCpuTempDisplay()
-
+                
+                var freq = "--"
+                var temp = "--"
                 var rawStat: String? = null
-                if (cachedHasRoot) rawStat = RootEngine.su("cat /proc/stat 2>/dev/null").output
-                else if (cachedHasShizuku) rawStat = ShizukuEngine.sh("cat /proc/stat 2>/dev/null").output
+
+                // BATCH READ: 1 su call for all stats
+                if (cachedHasRoot) {
+                    val batch = RootEngine.getSystemStatsBatch()
+                    val parts = batch.split("|||")
+                    if (parts.size == 4) {
+                        rawStat = parts[0]
+                        freq = parts[1].trim().toLongOrNull()?.div(1000L)?.let { "${it}MHz" } ?: "--"
+                        val rawTemp = parts[2].trim().toFloatOrNull() ?: 0f
+                        temp = if (rawTemp > 0f) "%.1f°C".format(if (rawTemp > 1000f) rawTemp / 1000f else rawTemp) else "--"
+                    }
+                } else if (cachedHasShizuku) {
+                    val batch = ShizukuEngine.getSystemStatsBatch()
+                    val parts = batch.split("|||")
+                    if (parts.size == 4) {
+                        rawStat = parts[0]
+                        freq = parts[1].trim().toLongOrNull()?.div(1000L)?.let { "${it}MHz" } ?: "--"
+                        val rawTemp = parts[2].trim().toFloatOrNull() ?: 0f
+                        temp = if (rawTemp > 0f) "%.1f°C".format(if (rawTemp > 1000f) rawTemp / 1000f else rawTemp) else "--"
+                    }
+                }
 
                 val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
                 val bat = getBatteryPowerInfo(this@MonAiService)
@@ -253,15 +293,7 @@ class MonAiService : Service() {
                     }
                 }
 
-                if (cachedHasRoot && aiOptimizerEnabled) {
-                    val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                    val memInfo = ActivityManager.MemoryInfo()
-                    am.getMemoryInfo(memInfo)
-                    val availRam = memInfo.availMem / (1024L * 1024L)
-                    RootEngine.adaptiveMemoryTune(availRam)
-                }
-
-                val notif = buildNotification(focusInfo, cpuFreq, cpuTemp, cpuPct, bat)
+                val notif = buildNotification(focusInfo, freq, temp, cpuPct, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 manager.notify(NOTIF_ID, notif)
 
@@ -277,14 +309,14 @@ class MonAiService : Service() {
         if (hasRoot) {
             when (profile) {
                 OptProfile.PERFORMANCE -> RootEngine.applyPerformance()
-                OptProfile.BALANCED    -> RootEngine.applyBalanced()
-                OptProfile.BATTERY     -> RootEngine.applyBattery()
+                OptProfile.BALANCED -> RootEngine.applyBalanced()
+                OptProfile.BATTERY -> RootEngine.applyBattery()
             }
         } else if (hasShz) {
             when (profile) {
                 OptProfile.PERFORMANCE -> ShizukuEngine.applyPerformance()
-                OptProfile.BALANCED    -> ShizukuEngine.applyBalanced()
-                OptProfile.BATTERY     -> ShizukuEngine.applyBattery()
+                OptProfile.BALANCED -> ShizukuEngine.applyBalanced()
+                OptProfile.BATTERY -> ShizukuEngine.applyBattery()
             }
         }
     }
@@ -419,7 +451,8 @@ class MonAiService : Service() {
 
             BatteryPowerInfo(isCharging, currentMa, pct, tempC)
         } catch (_: Exception) {
-            BatteryPowerInfo(false, 280, 71, 33.0)
+            // FIX: Hilangkan data palsu, kembalikan 0 agar UI tidak menipu
+            BatteryPowerInfo(false, 0, 0, 0.0)
         }
     }
 
@@ -502,7 +535,7 @@ class MonAiService : Service() {
         val labelSave = if (isSave) "✓ SAVER" else "SAVER"
 
         val perfColor = ContextCompat.getColor(this, R.color.notif_perf_color)
-        val balColor  = ContextCompat.getColor(this, R.color.notif_bal_color)
+        val balColor = ContextCompat.getColor(this, R.color.notif_bal_color)
         val saveColor = ContextCompat.getColor(this, R.color.notif_save_color)
         val whiteColor = ContextCompat.getColor(this, R.color.notif_btn_active_text)
 

@@ -1,1 +1,4 @@
 -keep class rikka.shizuku.** { *; }
+-keep class com.monai.optimizer.IShellUserService { *; }
+-keep class com.monai.optimizer.ShellUserService { *; }
+-keep class * extends rikka.shizuku.ShizukuProvider { *; }

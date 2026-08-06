@@ -223,7 +223,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     val cpuColor = when {
                         vm.cpuUsagePct > 85 -> RedErr
                         vm.cpuUsagePct > 60 -> AmberWarn
-                        else               -> EmeraldGlow
+                        else -> EmeraldGlow
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("CPU Usage", color = TextTertiary, style = MaterialTheme.typography.labelSmall)
@@ -235,7 +235,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
-                        color     = cpuColor,
+                        color = cpuColor,
                         trackColor = AppSurfaceVariant
                     )
                 }
@@ -245,17 +245,17 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     // Full row: freq/temp from kernel, ZRAM, governor
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         StatBlock("CPU FREQ", vm.cpuFreq)
-                        StatBlock("TEMP",     vm.cpuTemp)
-                        StatBlock("ZRAM",     vm.zramInfo)
+                        StatBlock("TEMP", vm.cpuTemp)
+                        StatBlock("ZRAM", vm.zramInfo)
                         StatBlock("GOVERNOR", vm.currentGov)
                     }
                 } else if (s.hasShizuku) {
                     // Shizuku/non-root: freq & temp dari sysfs (MonitorEngine)
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         StatBlock("CPU FREQ", vm.cpuFreq)
-                        StatBlock("TEMP",     vm.cpuTemp)
+                        StatBlock("TEMP", vm.cpuTemp)
                         StatBlock("RAM FREE", "${vm.liveAvailRamMb} MB")
-                        StatBlock("MODE",     "ADB")
+                        StatBlock("MODE", "ADB")
                     }
                 }
             } else {
@@ -323,7 +323,7 @@ fun ProfileSelectorRow(vm: MainViewModel) {
             }
 
             val activeDesc = profiles.firstOrNull { it.first == vm.activeProfile }?.second?.second
-                ?: "Select a profile to tune CPU governor, memory and doze behavior."
+            ?: "Select a profile to tune CPU governor, memory and doze behavior."
 
             Text(
                 activeDesc,
