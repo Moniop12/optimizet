@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "com.monai.optimizer"
-    compileSdk = 35
+    compileSdk = 35 // Upgraded to SDK 35 (Android 15)
 
     defaultConfig {
         applicationId = "com.monai.optimizer"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        targetSdk = 35 // Upgraded to SDK 35
+        versionCode = 1
+        versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -22,7 +22,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
+                "proguard-rules.pro"
             )
         }
     }
@@ -32,7 +32,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true; aidl = true; buildConfig = true }
+    buildFeatures { compose = true; aidl = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
@@ -51,14 +51,10 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Pustaka Resmi Maven Central (Kompatibel dengan Shizuku Original & ShizukuPlus)
+    // Shizuku
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 
-    // Jetpack DataStore — persistent state
+    // Jetpack DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-
-    // Unit test (HIGH-11)
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }

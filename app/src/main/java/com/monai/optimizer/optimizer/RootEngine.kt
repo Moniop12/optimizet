@@ -6,7 +6,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.monai.optimizer.BuildConfig
 import kotlinx.coroutines.flow.first
 
 data class CmdResult(val success: Boolean, val output: String, val cmd: String)
@@ -23,8 +22,6 @@ data class KernelBackupSnapshot(
 
 object RootEngine {
     private const val T = "RootEngine"
-    private const val SU_TIMEOUT_MS = 5000L
-    private const val HAS_ROOT_TIMEOUT_MS = 3000L
 
     private object BackupKeys {
         val DONE = booleanPreferencesKey("backup_done")
@@ -44,19 +41,33 @@ object RootEngine {
         if (appContext == null) appContext = context.applicationContext
     }
 
-    // ===== EKSEKUSI SU DENGAN TIMEOUT (Anti Hang Magisk/KernelSU) =====
-
-    /**
-     * Eksekusi perintah via `su -c` dengan timeout [timeoutMs].
-     * Proses di-destroyForcibly oleh daemon thread jika melewati batas waktu,
-     * sehingga TIDAK PERNAH hang selamanya.
-     */
-    private fun suInternal(cmd: String, timeoutMs: Long): CmdResult = try {
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-
+    // ── ROOT CHECK DENGAN TIMEOUT (Anti Hang Magisk/KernelSU) ──────────
+    fun hasRoot(): Boolean = try {
+        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
+        
+        // Thread terpisah untuk kill proses jika timeout 3 detik
         val worker = Thread {
             try {
-                Thread.sleep(timeoutMs)
+                Thread.sleep(3000)
+                if (p.isAlive) p.destroyForcibly()
+            } catch (_: Exception) {}
+        }
+        worker.isDaemon = true
+        worker.start()
+        
+        val out = p.inputStream.bufferedReader().readText().trim()
+        val rc = p.waitFor()
+        out == "ok" && rc == 0
+    } catch (_: Exception) { false }
+
+    // ── EXEC SU DENGAN TIMEOUT ─────────────────────────────────────────
+    fun su(cmd: String): CmdResult = try {
+        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+        
+        // Thread terpisah untuk kill proses jika timeout 5 detik
+        val worker = Thread {
+            try {
+                Thread.sleep(5000)
                 if (p.isAlive) p.destroyForcibly()
             } catch (_: Exception) {}
         }
@@ -66,21 +77,9 @@ object RootEngine {
         val out = p.inputStream.bufferedReader().readText().trim()
         val err = p.errorStream.bufferedReader().readText().trim()
         val rc = p.waitFor()
-        if (BuildConfig.DEBUG) Log.d(T, "[$rc] $cmd")
+        Log.d(T, "[$rc] $cmd")
         CmdResult(rc == 0, out.ifEmpty { err }, cmd)
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
-
-    fun su(cmd: String): CmdResult = suInternal(cmd, SU_TIMEOUT_MS)
-
-    fun hasRoot(): Boolean = try {
-        val r = suInternal("echo ok", HAS_ROOT_TIMEOUT_MS)
-        r.success && r.output.contains("ok")
-    } catch (_: Exception) { false }
-
-    // ===== UTIL SHELL =====
-
-    /** Escape package name agar aman di interpolasi shell (MEDIUM-14 / HIGH-8). */
-    fun shellEscape(value: String): String = value.replace(Regex("[^a-zA-Z0-9._-]"), "_")
 
     fun getGovernors(): List<String> {
         val r = su("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors 2>/dev/null")
@@ -95,9 +94,8 @@ object RootEngine {
         if (available.isNotEmpty() && !available.contains(gov)) {
             return CmdResult(false, "Governor $gov is not supported by kernel", "setGov $gov")
         }
-        val safeGov = shellEscape(gov)
         val cmd = "chmod 666 /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null; " +
-                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $safeGov > \$g; done"
+                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
         return su(cmd)
     }
 
@@ -138,7 +136,7 @@ object RootEngine {
             prefs[BackupKeys.DURATION_SCALE] = dur
             prefs[BackupKeys.DONE] = true
         }
-        if (BuildConfig.DEBUG) Log.d(T, "Backed up original state successfully.")
+        Log.d(T, "Backed up original state successfully.")
     }
 
     suspend fun getBackupSnapshot(): KernelBackupSnapshot? {
@@ -150,7 +148,7 @@ object RootEngine {
             swappiness = prefs[BackupKeys.SWAPPINESS] ?: "60",
             dirtyRatio = prefs[BackupKeys.DIRTY_RATIO] ?: "20",
             dirtyBackgroundRatio = prefs[BackupKeys.DIRTY_BG_RATIO] ?: "10",
-            vfsCachePressure = prefs[BackupKeys.VFS_CACHE_PRESSURE] ?: "100",
+            vfsCachePressure = prefs[BackupKeys.VFS_CACHE_PRESSURE] ?: "100"
         )
     }
 
@@ -163,7 +161,7 @@ object RootEngine {
                 "settings put system peak_refresh_rate $maxRefreshRate; " +
                 "settings put system min_refresh_rate $maxRefreshRate; " +
                 "settings put global disable_window_blurs 1; " +
-                "settings put global accessibility_reduce_transparency 1",
+                "settings put global accessibility_reduce_transparency 1"
             )
         } else {
             su(
@@ -173,7 +171,7 @@ object RootEngine {
                 "settings delete system peak_refresh_rate; " +
                 "settings delete system min_refresh_rate; " +
                 "settings put global disable_window_blurs 0; " +
-                "settings put global accessibility_reduce_transparency 0",
+                "settings put global accessibility_reduce_transparency 0"
             )
         }
     }
@@ -187,7 +185,7 @@ object RootEngine {
             su("cmd power set-fixed-performance-mode-enabled true 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=10"),
             su("sysctl -w vm.dirty_ratio=30"),
-            su("sysctl -w vm.vfs_cache_pressure=50"),
+            su("sysctl -w vm.vfs_cache_pressure=50")
         )
     }
 
@@ -200,7 +198,7 @@ object RootEngine {
             su("cmd power set-fixed-performance-mode-enabled false 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=30"),
             su("sysctl -w vm.dirty_ratio=20"),
-            su("sysctl -w vm.vfs_cache_pressure=80"),
+            su("sysctl -w vm.vfs_cache_pressure=80")
         )
     }
 
@@ -213,7 +211,7 @@ object RootEngine {
             su("cmd power set-fixed-performance-mode-enabled false 2>/dev/null || true"),
             su("sysctl -w vm.swappiness=60"),
             su("sysctl -w vm.dirty_ratio=10"),
-            su("dumpsys deviceidle force-idle 2>/dev/null || true"),
+            su("dumpsys deviceidle force-idle 2>/dev/null || true")
         )
     }
 
@@ -232,6 +230,7 @@ object RootEngine {
         val dirtyBgRatio = snap?.dirtyBackgroundRatio ?: "10"
         val vfsCachePressure = snap?.vfsCachePressure ?: "100"
 
+        // Baca anim scale dari backup, fallback ke 1.0
         val prefs = ctx.kernelBackupStore.data.first()
         val animScale = prefs[BackupKeys.ANIM_SCALE] ?: "1.0"
         val transScale = prefs[BackupKeys.TRANSITION_SCALE] ?: "1.0"
@@ -249,7 +248,7 @@ object RootEngine {
             su("sysctl -w vm.dirty_background_ratio=$dirtyBgRatio"),
             su("sysctl -w vm.vfs_cache_pressure=$vfsCachePressure"),
             su("settings delete global background_process_limit 2>/dev/null || true"),
-            su("dumpsys deviceidle disable 2>/dev/null || true"),
+            su("dumpsys deviceidle disable 2>/dev/null || true")
         )
     }
 
@@ -278,69 +277,10 @@ object RootEngine {
         return su("sysctl -w vm.swappiness=$swappiness")
     }
 
-    // ===== FITUR PEMBERSIHAN (redesign anti-gimik) =====
-
-    /**
-     * HIGH-9/MEDIUM-4: `am kill-all` & `drop_caches` DIHAPUS (kontraproduktif:
-     * Android me-restart app yang dibunuh + page cache justru mempercepat I/O).
-     * Diganti dengan trim memory aman — sinyal ke Android untuk mengosongkan
-     * memori yang TIDAK dipakai app (tanpa membunuh proses paksa).
-     */
-    fun trimMemorySafe(): CmdResult = su(
-        "cmd package trim-caches 999G 2>/dev/null; " +
-        "for pkg in \$(pm list packages -3 2>/dev/null | cut -d: -f2 | head -n 30); do " +
-        "am send-trim-memory \$pkg COMPLETE 2>/dev/null; done; echo done",
-    )
-
-    /** Clear System Caches — mekanisme resmi Android (fitur NYATA, dipertahankan). */
+    fun killBgApps(): CmdResult = su("am kill-all 2>/dev/null; cmd activity kill-all 2>/dev/null; sync; echo 3 > /proc/sys/vm/drop_caches; echo done")
+    fun dropCaches(): CmdResult = su("sync; echo 3 > /proc/sys/vm/drop_caches; echo done")
     fun clearCaches(): CmdResult = su("cmd package trim-caches 999G 2>/dev/null; echo done")
-
-    /** Estimasi ukuran cache (dipakai sekali saat Clear System Caches untuk menampilkan delta). */
     fun getEstimatedCacheSizeMb(): Long = try {
         su("du -sm /data/user/0/*/cache 2>/dev/null | awk '{s+=\$1} END {print s}'").output.trim().toLongOrNull() ?: 0L
     } catch (_: Exception) { 0L }
-
-    // ===== APP MANAGEMENT (MEDIUM-5: backup & restore appops) =====
-
-    /** Simpan status RUN_IN_BACKGROUND semua app pihak-3 — untuk restore nanti. */
-    suspend fun snapshotBackgroundAppOps(): Map<String, String> = runCatching {
-        val ctx = appContext ?: return emptyMap()
-        val key = stringPreferencesKey("appops_snapshot")
-        val r = su(
-            "for pkg in \$(pm list packages -3 2>/dev/null | cut -d: -f2); do " +
-            "echo \"\$pkg|RUN_IN_BACKGROUND|\$(appops get \$pkg RUN_IN_BACKGROUND 2>/dev/null | grep -oE '(allow|ignore|deny|default)' | head -n 1)\"; " +
-            "echo \"\$pkg|RUN_ANY_IN_BACKGROUND|\$(appops get \$pkg RUN_ANY_IN_BACKGROUND 2>/dev/null | grep -oE '(allow|ignore|deny|default)' | head -n 1)\"; " +
-            "done",
-        )
-        val map = r.output.lines()
-            .mapNotNull { line ->
-                val parts = line.split("|")
-                if (parts.size == 3) "${parts[0]}::${parts[1]}" to parts[2] else null
-            }
-            .toMap()
-        ctx.kernelBackupStore.edit { prefs -> prefs[key] = map.entries.joinToString("\n") { "${it.key}=${it.value}" } }
-        map
-    }.getOrDefault(emptyMap())
-
-    /** Restore status appops RUN_IN_BACKGROUND dari snapshot (MEDIUM-5). */
-    suspend fun restoreBackgroundAppOps(): CmdResult {
-        val ctx = appContext ?: return CmdResult(false, "no context", "restore-appops")
-        val key = stringPreferencesKey("appops_snapshot")
-        val saved = ctx.kernelBackupStore.data.first()[key].orEmpty()
-        if (saved.isBlank()) return CmdResult(false, "Tidak ada snapshot appops untuk di-restore", "restore-appops")
-
-        val cmds = saved.lines().mapNotNull { line ->
-            val eq = line.indexOf('=')
-            if (eq <= 0) return@mapNotNull null
-            val k = line.substring(0, eq)
-            val v = line.substring(eq + 1)
-            val parts = k.split("::")
-            if (parts.size != 2) return@mapNotNull null
-            val pkg = shellEscape(parts[0])
-            val op = parts[1]
-            "appops set $pkg $op $v 2>/dev/null"
-        }
-        if (cmds.isEmpty()) return CmdResult(false, "Snapshot kosong", "restore-appops")
-        return su(cmds.joinToString("; ") + "; echo done")
-    }
 }

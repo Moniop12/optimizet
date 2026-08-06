@@ -48,7 +48,7 @@ object DeviceAnalyzer {
             totalRamMb   = usableRamMb,
             physicalRamGb= physicalGb,
             availRamMb   = availRamMb,
-            chipset      = readChip(hasRoot, hasShizuku),
+            chipset      = readChip(),
             maxFreqMhz   = readFreq(),
             hasRoot      = hasRoot,
             hasShizuku   = hasShizuku,
@@ -71,40 +71,12 @@ object DeviceAnalyzer {
         }
     }
 
-    /**
-     * MEDIUM-8: Baca chipset dengan fallback berlapis:
-     *  1. `getprop ro.soc.manufacturer / ro.soc.model` — hanya jika ada Root/Shizuku
-     *     (nilai paling akurat di kernel modern, mis. "Qualcomm SM8550")
-     *  2. Build.SOC_MANUFACTURER + SOC_MODEL (API 31+)
-     *  3. /proc/cpuinfo Hardware (kernel lama)
-     *  4. Build.HARDWARE (paling umum)
-     */
-    private fun readChip(hasRoot: Boolean, hasShizuku: Boolean): String {
-        if (hasRoot || hasShizuku) {
-            val provider = if (hasRoot) RootEngine::su else { cmd: String -> ShizukuEngine.sh(cmd).let { CmdResult(it.success, it.output, it.cmd) } }
-            val man = provider("getprop ro.soc.manufacturer 2>/dev/null").output.trim()
-            val model = provider("getprop ro.soc.model 2>/dev/null").output.trim()
-            if (model.isNotBlank() && model.lowercase() != "unknown") {
-                return if (man.isNotBlank() && man.lowercase() != "unknown") "$man $model" else model
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val socModel = Build.SOC_MODEL
-            if (!socModel.isNullOrBlank() && socModel != "unknown") {
-                val socMan = Build.SOC_MANUFACTURER
-                return if (!socMan.isNullOrBlank() && socMan != "unknown") "$socMan $socModel" else socModel
-            }
-        }
-
-        return try {
-            File("/proc/cpuinfo").readLines()
-                .firstOrNull { it.startsWith("Hardware") }
-                ?.substringAfter(":")?.trim()
-                ?.takeIf { it.isNotBlank() && it.lowercase() != "unknown" }
-                ?: Build.HARDWARE
-        } catch (_: Exception) { Build.HARDWARE }
-    }
+    private fun readChip(): String = try {
+        File("/proc/cpuinfo").readLines()
+            .firstOrNull { it.startsWith("Hardware") }
+            ?.substringAfter(":")?.trim()
+            ?: Build.HARDWARE
+    } catch (_: Exception) { Build.HARDWARE }
 
     // Perbaikan: baca semua core, ambil max tertinggi
     private fun readFreq(): Int {

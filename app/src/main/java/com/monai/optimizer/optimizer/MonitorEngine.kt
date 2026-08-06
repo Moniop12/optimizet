@@ -13,12 +13,6 @@ object MonitorEngine {
     @Volatile private var prevIdle  = 0L
     @Volatile private var prevTotal = 0L
 
-    /** Reset delta CPU — untuk unit test & saat sampling dimulai ulang. */
-    fun resetCpuDelta() {
-        prevIdle = 0L
-        prevTotal = 0L
-    }
-
     fun getCpuUsagePercent(rawProcStatOverride: String? = null): Int {
         return try {
             val line = if (!rawProcStatOverride.isNullOrBlank()) {

@@ -5,7 +5,6 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
-import com.monai.optimizer.BuildConfig
 import com.monai.optimizer.IShellUserService
 import rikka.shizuku.Shizuku
 
@@ -43,7 +42,7 @@ object ShizukuEngine {
                 service = if (binder != null && binder.pingBinder()) IShellUserService.Stub.asInterface(binder) else null
                 bindLock.notifyAll()
             }
-            if (BuildConfig.DEBUG) Log.d(T, "UserService connected: ${service != null}")
+            Log.d(T, "UserService connected: ${service != null}")
         }
         override fun onServiceDisconnected(name: ComponentName?) {
             synchronized(bindLock) { service = null }
@@ -58,7 +57,7 @@ object ShizukuEngine {
             try {
                 Shizuku.bindUserService(userServiceArgs, connection)
             } catch (e: Throwable) {
-                if (BuildConfig.DEBUG) Log.e(T, "bindUserService failed", e)
+                Log.e(T, "bindUserService failed", e)
                 return null
             }
             val deadline = System.currentTimeMillis() + 2500
@@ -77,7 +76,7 @@ object ShizukuEngine {
             if (sep == -1) return SCmd(false, raw, cmd)
             val code = raw.substring(0, sep).toIntOrNull() ?: -1
             val out = raw.substring(sep + 1)
-            if (BuildConfig.DEBUG) Log.d(T, "[SHZ $code] $cmd")
+            Log.d(T, "[SHZ $code] $cmd")
             SCmd(code == 0, out, cmd)
         } catch (e: Throwable) {
             synchronized(bindLock) { service = null }
@@ -97,7 +96,7 @@ object ShizukuEngine {
     fun setStandbyBucketsRestricted(): SCmd = sh(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
         "am set-standby-bucket \$pkg restricted 2>/dev/null; " +
-        "done; echo done",
+        "done; echo done"
     )
 
     fun setResolutionPreset(size: String?, density: Int?): SCmd {
@@ -118,7 +117,7 @@ object ShizukuEngine {
         sh("settings put global disable_window_blurs 1"),
         sh("settings put global accessibility_reduce_transparency 1"),
         sh("settings put global background_process_limit 6"),
-        sh("settings put global wifi_scan_throttle_enabled 1"),
+        sh("settings put global wifi_scan_throttle_enabled 1")
     )
 
     fun applyBalanced(maxRefreshRate: Float = 90f): List<SCmd> = listOf(
@@ -129,7 +128,7 @@ object ShizukuEngine {
         sh("settings put system min_refresh_rate $maxRefreshRate"),
         sh("settings put global disable_window_blurs 1"),
         sh("settings put global accessibility_reduce_transparency 1"),
-        sh("settings put global background_process_limit 5"),
+        sh("settings put global background_process_limit 5")
     )
 
     fun applyBattery(): List<SCmd> = listOf(
@@ -141,30 +140,26 @@ object ShizukuEngine {
         sh("settings put global disable_window_blurs 0"),
         sh("settings put global accessibility_reduce_transparency 0"),
         sh("settings put global background_process_limit 3"),
-        sh("dumpsys deviceidle force-idle"),
+        sh("dumpsys deviceidle force-idle")
     )
 
     fun restrictBackground(): SCmd = sh(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
         "appops set \$pkg RUN_IN_BACKGROUND ignore 2>/dev/null; " +
         "appops set \$pkg RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; " +
-        "done; echo done",
+        "done; echo done"
     )
 
-    /** HIGH-9: trim memory aman — bukan am kill-all. Batasi 30 app/batch (NEW-MEDIUM-C). */
     fun trimMemory(): SCmd = sh(
         "cmd package trim-caches 999G 2>/dev/null; " +
-        "for pkg in \$(pm list packages -3 | cut -d: -f2 | head -n 30); do " +
-        "am send-trim-memory \$pkg COMPLETE 2>/dev/null; done; " +
-        "echo done",
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do am send-trim-memory \$pkg COMPLETE 2>/dev/null; done; " +
+        "echo done"
     )
 
-    /** HIGH-9: dihapusnya am kill-all — diganti trim memory aman. */
-    fun killBgApps(): SCmd = trimMemory()
-
+    fun killBgApps(): SCmd = sh("am kill-all; cmd activity kill-all")
     fun aggressiveDoze(): List<SCmd> = listOf(
         sh("dumpsys deviceidle enable"),
-        sh("dumpsys deviceidle force-idle"),
+        sh("dumpsys deviceidle force-idle")
     )
 
     fun applySmoothRenderingTweaks(enable: Boolean, maxRefreshRate: Float = 90f): SCmd {
@@ -175,7 +170,7 @@ object ShizukuEngine {
             "settings put system peak_refresh_rate $maxRefreshRate && " +
             "settings put system min_refresh_rate $maxRefreshRate && " +
             "settings put global disable_window_blurs 1 && " +
-            "settings put global accessibility_reduce_transparency 1",
+            "settings put global accessibility_reduce_transparency 1"
         ) else sh(
             "settings put global window_animation_scale 1.0 && " +
             "settings put global transition_animation_scale 1.0 && " +
@@ -183,26 +178,22 @@ object ShizukuEngine {
             "settings delete system peak_refresh_rate && " +
             "settings delete system min_refresh_rate && " +
             "settings put global disable_window_blurs 0 && " +
-            "settings put global accessibility_reduce_transparency 0",
+            "settings put global accessibility_reduce_transparency 0"
         )
     }
 
     fun resetToDefaults(): List<SCmd> = listOf(
         applySmoothRenderingTweaks(false),
         sh("settings delete global background_process_limit"),
-        sh("dumpsys deviceidle disable"),
+        sh("dumpsys deviceidle disable")
     )
 
     // FIX: Logika if/elif/else agar exit code mencerminkan hasil asli
-    fun freezeApp(pkg: String): SCmd {
-        val safe = RootEngine.shellEscape(pkg)
-        return sh("if pm disable-user --user 0 $safe 2>/dev/null; then echo frozen; elif pm suspend --user 0 $safe 2>/dev/null; then echo frozen; else echo failed; fi")
-    }
+    fun freezeApp(pkg: String): SCmd =
+        sh("if pm disable-user --user 0 $pkg 2>/dev/null; then echo frozen; elif pm suspend --user 0 $pkg 2>/dev/null; then echo frozen; else echo failed; fi")
 
-    fun unfreezeApp(pkg: String): SCmd {
-        val safe = RootEngine.shellEscape(pkg)
-        return sh("if pm enable --user 0 $safe 2>/dev/null; then echo active; elif pm unsuspend --user 0 $safe 2>/dev/null; then echo active; else echo failed; fi")
-    }
+    fun unfreezeApp(pkg: String): SCmd =
+        sh("if pm enable --user 0 $pkg 2>/dev/null; then echo active; elif pm unsuspend --user 0 $pkg 2>/dev/null; then echo active; else echo failed; fi")
 
     fun listDisabledPkgs(): Set<String> {
         val raw = sh("pm list packages -d 2>/dev/null").output
