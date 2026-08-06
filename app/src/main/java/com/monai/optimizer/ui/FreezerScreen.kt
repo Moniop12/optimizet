@@ -34,12 +34,10 @@ import com.monai.optimizer.optimizer.FrozenAppItem
 import com.monai.optimizer.ui.components.*
 import com.monai.optimizer.ui.theme.*
 
-// ── Filter Types ─────────────────────────────────────────────────────
 private enum class FreezerFilter(val label: String) {
-    ALL("All"), SYSTEM("System"), USER("User"), FROZEN("Frozen")
+    ALL("All"), USER("User"), SYSTEM("System"), FROZEN("Frozen")
 }
 
-// ── Screen ────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
@@ -48,7 +46,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
     var query  by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(FreezerFilter.ALL) }
 
-    // Load on first composition
     LaunchedEffect(Unit) {
         if (vm.freezerApps.isEmpty()) vm.loadFreezerApps(ctx)
     }
@@ -60,8 +57,8 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 app.pkg.contains(query, ignoreCase = true)
             val matchFilter = when (filter) {
                 FreezerFilter.ALL    -> true
-                FreezerFilter.SYSTEM -> app.isSystem
                 FreezerFilter.USER   -> !app.isSystem
+                FreezerFilter.SYSTEM -> app.isSystem
                 FreezerFilter.FROZEN -> app.isLocked
             }
             matchQuery && matchFilter
@@ -75,7 +72,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
             .fillMaxSize()
             .background(AppBg)
     ) {
-        // ── Top Bar ──────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -100,7 +96,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                     fontSize = 11.sp
                 )
             }
-            // Reload button
             IconButton(
                 onClick = { vm.loadFreezerApps(ctx) },
                 enabled = !vm.freezerLoading
@@ -114,7 +109,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
 
         HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
-        // ── Search Bar ───────────────────────────────────────────────
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -143,7 +137,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
         )
 
-        // ── Filter Chips ─────────────────────────────────────────────
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -158,8 +151,8 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                     label = {
                         val cnt = when (f) {
                             FreezerFilter.ALL    -> vm.freezerApps.size
-                            FreezerFilter.SYSTEM -> vm.freezerApps.count { it.isSystem }
                             FreezerFilter.USER   -> vm.freezerApps.count { !it.isSystem }
+                            FreezerFilter.SYSTEM -> vm.freezerApps.count { it.isSystem }
                             FreezerFilter.FROZEN -> frozenCount
                         }
                         Text("${f.label} ($cnt)", fontSize = 12.sp)
@@ -172,16 +165,14 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
         }
 
-        // ── Privilege Banner ─────────────────────────────────────────
         if (!vm.hasShizuku && !vm.hasRoot) {
             InfoBanner(
-                "Requires Shizuku or Root to freeze apps",
+                "Requires Shizuku or Root permission to freeze apps",
                 accent = AmberWarn
             )
             Spacer(Modifier.height(6.dp))
         }
 
-        // ── App List ─────────────────────────────────────────────────
         AnimatedContent(
             targetState = vm.freezerLoading && vm.freezerApps.isEmpty(),
             transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -213,7 +204,7 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                     items(filtered, key = { it.pkg }) { app ->
                         FreezerAppItem(
                             item     = app,
-                            canAct   = vm.hasShizuku || vm.hasRoot,
+                            canAct   = (vm.hasShizuku || vm.hasRoot) && !app.isCritical,
                             isLoading = vm.freezerActionPkg == app.pkg,
                             onToggle = { vm.toggleFreezeApp(ctx, app) }
                         )
@@ -225,7 +216,6 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 }
 
-// ── Single App Row ────────────────────────────────────────────────────
 @Composable
 private fun FreezerAppItem(
     item: FrozenAppItem,
@@ -241,8 +231,8 @@ private fun FreezerAppItem(
     }
 
     val accentColor = when {
-        item.isDisabled -> RedErr
-        item.isFrozen   -> CleanPurple
+        item.isCritical -> AmberWarn
+        item.isLocked   -> CleanPurple
         else            -> EmeraldGlow
     }
 
@@ -252,7 +242,6 @@ private fun FreezerAppItem(
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // App Icon
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -276,7 +265,6 @@ private fun FreezerAppItem(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                // Frozen overlay dot
                 if (item.isLocked) {
                     Box(
                         modifier = Modifier
@@ -296,7 +284,6 @@ private fun FreezerAppItem(
                 }
             }
 
-            // App Info
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     item.name,
@@ -313,31 +300,26 @@ private fun FreezerAppItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                // Status + Type badge row
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(item.stateLabel, item.isLocked, accentColor)
+                    StatusPill(item.stateLabel, item.isLocked || item.isCritical, accentColor)
                     StatusPill(item.typeLabel, true, if (item.isSystem) AmberWarn else CyanGlow)
                 }
             }
 
-            // Action Button
-            // - Disabled (pm disable-user) apps: read-only badge, tidak bisa di-toggle via Freezer
-            // - Suspended (pm suspend) apps: Freeze/Unfreeze toggle tersedia
-            val canToggle = canAct && !item.isDisabled && !isLoading
-            val btnColor  = when {
-                item.isDisabled -> AmberWarn
-                item.isFrozen   -> RedErr
+            val btnColor = when {
+                item.isCritical -> TextDisabled
+                item.isLocked   -> RedErr
                 else            -> CyanGlow
             }
             val btnLabel = when {
-                item.isDisabled -> "Disabled"
-                item.isFrozen   -> "Unfreeze"
+                item.isCritical -> "Protected"
+                item.isLocked   -> "Unfreeze"
                 else            -> "Freeze"
             }
 
             FilledTonalButton(
                 onClick = onToggle,
-                enabled = canToggle,
+                enabled = canAct && !isLoading,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor         = btnColor.copy(alpha = 0.10f),
@@ -362,7 +344,6 @@ private fun FreezerAppItem(
     }
 }
 
-// ── Drawable → Bitmap helper ──────────────────────────────────────────
 private fun Drawable.toBitmap(): Bitmap {
     if (this is BitmapDrawable && bitmap != null) return bitmap
     val w = intrinsicWidth.coerceIn(1, 192)

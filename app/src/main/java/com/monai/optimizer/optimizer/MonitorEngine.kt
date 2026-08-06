@@ -5,19 +5,25 @@ import java.io.File
 data class RamSnapshot(val totalMb: Long, val availMb: Long, val usedPct: Int)
 
 /**
- * MonitorEngine — membaca data CPU & RAM dari /proc dan sysfs.
- * Tidak butuh root maupun Shizuku — file ini world-readable di semua Android.
+ * MonitorEngine — Membaca data CPU Usage % & Memory.
+ * Dilengkapi fallback ke Shell (Shizuku/Root) jika SELinux memblokir pembacaan /proc/stat.
  */
 object MonitorEngine {
 
     @Volatile private var prevIdle  = 0L
     @Volatile private var prevTotal = 0L
 
-    // ── CPU Usage % ──────────────────────────────────────────────────
-    fun getCpuUsagePercent(): Int {
+    // ── CPU Usage % (Dukungan Universal SELinux Fallback) ────────────────
+    fun getCpuUsagePercent(rawProcStatOverride: String? = null): Int {
         return try {
-            val line = File("/proc/stat").readLines()
-                .firstOrNull { it.startsWith("cpu ") } ?: return 0
+            val line = if (!rawProcStatOverride.isNullOrBlank()) {
+                rawProcStatOverride.lines().firstOrNull { it.startsWith("cpu ") }
+            } else {
+                runCatching {
+                    File("/proc/stat").readLines().firstOrNull { it.startsWith("cpu ") }
+                }.getOrNull()
+            } ?: return 0
+
             val p = line.trim().split(Regex("\\s+"))
             if (p.size < 8) return 0
 
@@ -42,7 +48,6 @@ object MonitorEngine {
         } catch (_: Exception) { 0 }
     }
 
-    // ── CPU Frequency ─────────────────────────────────────────────────
     fun getCpuFreqMhz(): Long {
         return try {
             File("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
@@ -67,7 +72,6 @@ object MonitorEngine {
         }
     }
 
-    // ── CPU Temperature ───────────────────────────────────────────────
     fun getCpuTempC(): Float {
         for (i in 0..15) {
             try {
@@ -85,7 +89,6 @@ object MonitorEngine {
         return if (c > 0f) "%.1f°C".format(c) else "--"
     }
 
-    // ── RAM ───────────────────────────────────────────────────────────
     fun getRamSnapshot(): RamSnapshot {
         return try {
             val lines = File("/proc/meminfo").readLines()

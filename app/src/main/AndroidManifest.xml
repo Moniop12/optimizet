@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Izin Penting untuk Query Semua App di Android 11+ (Fix App Freezer Kosong) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission"/>
+
+    <!-- Izin Shizuku & ShizukuPlus / Sui Compatibility -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
+    <uses-permission android:name="dev.rikka.shizuku.permission.API_V23"/>
+
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
@@ -28,14 +36,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Registered MonProject Foreground Live Notification Service -->
         <service
             android:name=".service.MonAiService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             
-            <!-- Android 14 (Target SDK 34) Mandatory Property Fix -->
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="System Optimization Engine &amp; Battery Safety Monitor"/>

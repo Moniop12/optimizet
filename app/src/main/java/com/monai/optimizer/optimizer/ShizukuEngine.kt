@@ -66,7 +66,7 @@ object ShizukuEngine {
 
     fun sh(cmd: String): SCmd {
         val svc = ensureBound()
-            ?: return SCmd(false, "Shizuku service not available — make sure Shizuku app is running & permission is granted", cmd)
+            ?: return SCmd(false, "Shizuku service not available — pastikan Shizuku / ShizukuPlus berjalan", cmd)
         return try {
             val raw = svc.exec(cmd)
             val sep = raw.indexOf('\u0001')
@@ -81,14 +81,12 @@ object ShizukuEngine {
         }
     }
 
-    // ── FITUR BARU: App Standby Buckets (Hibernasi Aplikasi Pihak-3) ──
     fun setStandbyBucketsRestricted(): SCmd = sh(
         "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
         "am set-standby-bucket \$pkg restricted 2>/dev/null; " +
         "done; echo done"
     )
 
-    // ── FITUR BARU: Resolution & DPI Scaler ──────────────────────────
     fun setResolutionPreset(size: String?, density: Int?): SCmd {
         val cmd = if (size == null || density == null) {
             "wm size reset && wm density reset"
@@ -182,38 +180,16 @@ object ShizukuEngine {
         sh("dumpsys deviceidle disable")
     )
 
-    // ── App Freezer ───────────────────────────────────────────────────
-    // Menggunakan `pm suspend/unsuspend` — aman & reversible, tidak perlu
-    // root. Bekerja di Shizuku biasa maupun Shizuku+ (ADB shell level).
+    // ── FIX APP FREEZER ENGINE (Universal ADB & Root Freeze Command) ────────
+    // Menggunakan `pm disable-user --user 0` & `pm suspend --user 0` yang
+    // 100% didukung oleh ADB Shell & Root.
 
-    /**
-     * Suspend (freeze) satu package.
-     * Efek: icon abu-abu, tidak bisa dibuka, semua background activity berhenti.
-     */
-    fun suspendApp(pkg: String): SCmd =
-        sh("pm suspend --user 0 $pkg 2>/dev/null && echo frozen || echo failed")
+    fun freezeApp(pkg: String): SCmd =
+        sh("pm disable-user --user 0 $pkg 2>/dev/null || pm suspend --user 0 $pkg 2>/dev/null && echo frozen")
 
-    /**
-     * Unsuspend (unfreeze) satu package.
-     */
-    fun unsuspendApp(pkg: String): SCmd =
-        sh("pm unsuspend --user 0 $pkg 2>/dev/null && echo active || echo failed")
+    fun unfreezeApp(pkg: String): SCmd =
+        sh("pm enable --user 0 $pkg 2>/dev/null || pm unsuspend --user 0 $pkg 2>/dev/null && echo active")
 
-    /**
-     * Kembalikan set package name yang sedang di-suspend.
-     * Output `pm list packages -s`: "package:com.example.app"
-     */
-    fun listSuspendedPkgs(): Set<String> {
-        val raw = sh("pm list packages -s 2>/dev/null").output
-        return raw.lines()
-            .filter { it.startsWith("package:") }
-            .map { it.removePrefix("package:").trim() }
-            .toSet()
-    }
-
-    /**
-     * Kembalikan set package name yang di-disable via pm disable-user.
-     */
     fun listDisabledPkgs(): Set<String> {
         val raw = sh("pm list packages -d 2>/dev/null").output
         return raw.lines()

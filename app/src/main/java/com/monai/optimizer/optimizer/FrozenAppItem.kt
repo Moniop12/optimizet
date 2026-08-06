@@ -1,23 +1,26 @@
 package com.monai.optimizer.optimizer
 
 /**
- * Representasi satu app di System App Freezer.
- * [isFrozen] = suspended via `pm suspend`
- * [isDisabled] = disabled via `pm disable-user`
+ * Data Model App Freezer dengan Proteksi Cerdas Sistem.
  */
 data class FrozenAppItem(
     val name: String,
     val pkg: String,
     val isSystem: Boolean,
-    val isFrozen: Boolean,
-    val isDisabled: Boolean,
+    val isFrozen: Boolean,        // Status Freeze (suspended atau disabled)
+    val isDisabled: Boolean,      // Status Disabled via pm disable-user
+    val isCritical: Boolean = false, // True jika app sistem vital (TIDAK BISA DIBEKUKAN demi keamanan HP)
 ) {
-    /** Frozen = suspended OR disabled */
     val isLocked: Boolean get() = isFrozen || isDisabled
 
-    val typeLabel: String get() = if (isSystem) "System" else "User"
+    val typeLabel: String get() = when {
+        isCritical -> "Protected System"
+        isSystem   -> "System"
+        else       -> "User App"
+    }
 
     val stateLabel: String get() = when {
+        isCritical -> "Protected"
         isDisabled -> "Disabled"
         isFrozen   -> "Frozen"
         else       -> "Active"
