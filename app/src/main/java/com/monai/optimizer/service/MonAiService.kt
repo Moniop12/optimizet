@@ -17,11 +17,12 @@ import androidx.core.content.ContextCompat
 import com.monai.optimizer.MainActivity
 import com.monai.optimizer.R
 import com.monai.optimizer.data.UserPreferencesRepository
-import com.monai.optimizer.optimizer.ChargingEngine
+import com.monai.optimizer.optimizer.ChargingController
 import com.monai.optimizer.optimizer.MonitorEngine
 import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.ShizukuEngine
+import com.monai.optimizer.optimizer.TelemetryCache
 import kotlinx.coroutines.*
 import java.io.File
 import kotlin.math.abs
@@ -32,21 +33,29 @@ data class BatteryPowerInfo(
     val isCharging: Boolean,
     val currentMa: Int,
     val percentage: Int,
-    val tempC: Double
+    val tempC: Double,
 )
 
 class MonAiService : Service() {
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var isRunning = false
+    // ===== SCOPE LIFECYCLE (CRITICAL-1) =====
+    // prefsScope: HIDUP selama service hidup — observePreferences() & prefs writes.
+    //             TIDAK PERNAH di-cancel (dulu ikut terbunuh oleh scope.cancel()).
+    // monitorScope: dibuat ULANG setiap ACTION_START; di-cancel anaknya saat STOP
+    //               via cancelChildren() — scope-nya sendiri tetap hidup.
+    private val prefsScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var monitorScope: CoroutineScope? = null
+
+    @Volatile private var isRunning = false
 
     private lateinit var prefsRepo: UserPreferencesRepository
+    private lateinit var chargingController: ChargingController
     private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
 
     private var lastFocusInfo = AppFocusInfo("System Active", null, 0L)
     private var dumpsysPollTick = 0
 
-    private val pkgRegex = Regex("""([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)""")
+    private val pkgRegex = Regex("""([a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+)""")
 
     @Volatile private var tempNotifLogMsg: String? = null
     private var tempLogJob: Job? = null
@@ -55,6 +64,12 @@ class MonAiService : Service() {
     @Volatile private var showNotifCpu = true
     @Volatile private var showNotifPower = true
     @Volatile private var showNotifProfiles = true
+
+    // Cache PendingIntent — dibangun SEKALI, dipakai ulang tiap tick (MEDIUM-16)
+    private var cachedOpenIntent: PendingIntent? = null
+    private var cachedPerfIntent: PendingIntent? = null
+    private var cachedBalIntent: PendingIntent? = null
+    private var cachedSaveIntent: PendingIntent? = null
 
     companion object {
         const val CHANNEL_ID = "monai_live_channel"
@@ -69,28 +84,54 @@ class MonAiService : Service() {
 
         private const val MONITOR_INTERVAL_MS = 3000L
         private const val DUMPSYS_POLL_EVERY = 3
+        private const val USAGE_EVENTS_INTERVAL_MS = 12_000L
+        private const val APP_NAME = "MonProject"
 
         @Volatile var currentActiveProfile: OptProfile? = null
 
-        @Volatile var isChargeLimitEnabled = false
-        @Volatile var chargeLimitPct = 80
-        @Volatile var chargeSpeedMa = UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA
-        @Volatile var isThermalProtectEnabled = false
-        @Volatile var isChargePausedByLimit = false
-        @Volatile var isThermalThrottled = false
+        // State charging dipindah ke ChargingController — field berikut dipertahankan
+        // sebagai delegasi baca untuk kompatibilitas pemanggil lama (UI).
+        // CATATAN: tanpa @Volatile (custom getter/setter tidak punya backing field —
+        // keamanan thread dijamin oleh @Volatile field di dalam ChargingController).
+        var isChargeLimitEnabled: Boolean
+            get() = activeChargingController()?.isChargeLimitEnabled ?: false
+            set(value) { activeChargingController()?.syncFromPrefs(value, activeChargingController()?.chargeLimitPct ?: 80, activeChargingController()?.chargeSpeedMa ?: UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA, activeChargingController()?.isThermalProtectEnabled ?: false, activeChargingController()?.isBypassChargingEnabled ?: false) }
 
-        @Volatile var aiOptimizerEnabled = false
+        var chargeLimitPct: Int
+            get() = activeChargingController()?.chargeLimitPct ?: UserPreferencesRepository.DEFAULT_CHARGE_LIMIT_PCT
+            set(value) { activeChargingController()?.syncFromPrefs(activeChargingController()?.isChargeLimitEnabled ?: false, value, activeChargingController()?.chargeSpeedMa ?: UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA, activeChargingController()?.isThermalProtectEnabled ?: false, activeChargingController()?.isBypassChargingEnabled ?: false) }
 
+        var chargeSpeedMa: Int
+            get() = activeChargingController()?.chargeSpeedMa ?: UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA
+            set(value) { activeChargingController()?.syncFromPrefs(activeChargingController()?.isChargeLimitEnabled ?: false, activeChargingController()?.chargeLimitPct ?: 80, value, activeChargingController()?.isThermalProtectEnabled ?: false, activeChargingController()?.isBypassChargingEnabled ?: false) }
+
+        var isThermalProtectEnabled: Boolean
+            get() = activeChargingController()?.isThermalProtectEnabled ?: false
+            set(value) { activeChargingController()?.syncFromPrefs(activeChargingController()?.isChargeLimitEnabled ?: false, activeChargingController()?.chargeLimitPct ?: 80, activeChargingController()?.chargeSpeedMa ?: UserPreferencesRepository.DEFAULT_CHARGE_SPEED_MA, value, activeChargingController()?.isBypassChargingEnabled ?: false) }
+
+        var isChargePausedByLimit: Boolean
+            get() = activeChargingController()?.isChargePausedByLimit ?: false
+            set(value) { activeChargingController()?.syncRuntimeFlags(pausedByLimit = value) }
+
+        var isThermalThrottled: Boolean
+            get() = activeChargingController()?.isThermalThrottled ?: false
+            set(value) { activeChargingController()?.syncRuntimeFlags(thermalThrottled = value) }
+
+        var aiOptimizerEnabled = false
+
+        @Volatile private var chargingControllerRef: ChargingController? = null
+
+        fun attachChargingController(controller: ChargingController) {
+            chargingControllerRef = controller
+        }
+
+        private fun activeChargingController(): ChargingController? = chargingControllerRef
+
+        // Fail-safe lama disederhanakan — sekarang lewat controller (HIGH-5)
         fun restoreChargingFailSafe() {
-            try {
-                if (isChargePausedByLimit || isThermalThrottled) {
-                    ChargingEngine.setChargingEnabled(true)
-                    ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
-                }
-            } catch (_: Throwable) {
-            } finally {
-                isChargePausedByLimit = false
-                isThermalThrottled = false
+            val ctrl = chargingControllerRef ?: return
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching { ctrl.restoreChargingFailSafe() }
             }
         }
     }
@@ -101,6 +142,9 @@ class MonAiService : Service() {
         super.onCreate()
         RootEngine.init(applicationContext)
         prefsRepo = UserPreferencesRepository(applicationContext)
+        // SINGLETON — instance yang sama dipakai MainViewModel (satu penulis charging)
+        chargingController = ChargingController.getInstance(prefsRepo)
+        attachChargingController(chargingController)
         createNotificationChannel()
         installFailSafeUncaughtHandler()
         observePreferences()
@@ -120,14 +164,18 @@ class MonAiService : Service() {
     }
 
     private fun observePreferences() {
-        scope.launch {
+        // prefsScope TIDAK pernah di-cancel — preferensi selalu sinkron (CRITICAL-1/NEW-CRITICAL-A)
+        prefsScope.launch {
             prefsRepo.preferencesFlow.collect { state ->
                 currentActiveProfile = state.activeProfile
-                isChargeLimitEnabled = state.isChargeLimitEnabled
-                chargeLimitPct = state.chargeLimitPct
-                chargeSpeedMa = state.chargeSpeedMa
-                isThermalProtectEnabled = state.isThermalProtectEnabled
                 aiOptimizerEnabled = state.aiOptimizerEnabled
+                chargingController.syncFromPrefs(
+                    chargeLimitEnabled = state.isChargeLimitEnabled,
+                    chargeLimitPct = state.chargeLimitPct,
+                    chargeSpeedMa = state.chargeSpeedMa,
+                    thermalProtect = state.isThermalProtectEnabled,
+                    bypassCharging = state.isBypassChargingEnabled,
+                )
 
                 showNotifRam = state.showNotifRam
                 showNotifCpu = state.showNotifCpu
@@ -138,33 +186,54 @@ class MonAiService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // ===== CRITICAL-2: startForeground() di SETIAP onStartCommand =====
+        // Android 12+ mewajibkan startForeground() ≤ 5 dtk setelah startForegroundService().
+        // Jalur restart sistem (START_STICKY → intent null) TANPA panggilan ini = crash
+        // ForegroundServiceDidNotStartInTimeException. Panggil SEBELUM cabang action apa pun.
+        startForeground(
+            NOTIF_ID,
+            buildNotification(AppFocusInfo("Initializing...", null, 0L), "--", "--", 0, BatteryPowerInfo(false, 0, 0, 0.0)),
+        )
+
         when (intent?.action) {
             ACTION_START -> {
                 if (!isRunning) {
                     isRunning = true
-                    startForeground(NOTIF_ID, buildNotification(AppFocusInfo("Initializing...", null, 0L), "--", "--", 0, BatteryPowerInfo(false, 0, 0, 0.0)))
-                    scope.launch { prefsRepo.setLiveServiceRunning(true) }
-                    scope.launch { RootEngine.backupOriginalStateIfNeeded() }
-                    startMonitoringLoop()
+                    // CRITICAL-1: scope baru dibuat ULANG per START (scope lama yang di-cancel tidak dipakai lagi)
+                    val newScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+                    monitorScope = newScope
+                    newScope.launch { prefsRepo.setLiveServiceRunning(true) }
+                    newScope.launch { RootEngine.backupOriginalStateIfNeeded() }
+                    startMonitoringLoop(newScope)
                 }
             }
             ACTION_STOP -> {
                 isRunning = false
-                restoreChargingFailSafe()
-                runBlocking { prefsRepo.setLiveServiceRunning(false) }
-                scope.cancel()
+                // CRITICAL-1: cancel HANYA anak monitorScope — prefsScope & prefsRepo tetap hidup
+                monitorScope?.cancel()
+                monitorScope = null
+                // HIGH-16: UI harus segera fallback ke pembacaan sendiri — invalidate cache
+                TelemetryCache.invalidate()
+                // HIGH-1: jangan runBlocking di main thread — DataStore I/O via coroutine
+                prefsScope.launch { prefsRepo.setLiveServiceRunning(false) }
+                // Fail-safe dipanggil async (bukan memblokir main thread)
+                prefsScope.launch { runCatching { chargingController.restoreChargingFailSafe() } }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
             ACTION_SET_PROFILE -> {
                 val profileName = intent.getStringExtra(EXTRA_PROFILE)
                 profileName?.let {
-                    val profile = OptProfile.valueOf(it)
-                    currentActiveProfile = profile
-                    scope.launch {
-                        prefsRepo.setActiveProfile(profile)
-                        applyProfileFromService(profile)
-                        triggerNotificationRefresh()
+                    // CRITICAL-3: runCatching — nama enum invalid dari PendingIntent/versi lama
+                    // TIDAK BOLEH crash service (dulu IllegalArgumentException di main thread)
+                    val profile = runCatching { OptProfile.valueOf(it) }.getOrNull()
+                    if (profile != null) {
+                        currentActiveProfile = profile
+                        prefsScope.launch {
+                            prefsRepo.setActiveProfile(profile)
+                            applyProfileFromService(profile)
+                            triggerNotificationRefresh()
+                        }
                     }
                 }
             }
@@ -180,7 +249,7 @@ class MonAiService : Service() {
         tempLogJob?.cancel()
         tempNotifLogMsg = msg
         triggerNotificationRefresh()
-        tempLogJob = scope.launch {
+        tempLogJob = prefsScope.launch {
             delay(4000L)
             tempNotifLogMsg = null
             triggerNotificationRefresh()
@@ -188,27 +257,17 @@ class MonAiService : Service() {
     }
 
     private fun triggerNotificationRefresh() {
-        scope.launch {
+        prefsScope.launch {
             val hasRoot = RootEngine.hasRoot()
             val hasShz = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
             val focusInfo = getFocusedAppInfo(this@MonAiService, hasRoot, hasShz)
             val bat = getBatteryPowerInfo(this@MonAiService)
 
+            val batch = TelemetryCache.readBatch()
             var rawStat: String? = null
             var freq = "--"
             var temp = "--"
-            
-            if (hasRoot) {
-                val batch = RootEngine.getSystemStatsBatch()
-                val parts = batch.split("|||")
-                if (parts.size == 4) {
-                    rawStat = parts[0]
-                    freq = parts[1].trim().toLongOrNull()?.div(1000L)?.let { "${it}MHz" } ?: "--"
-                    val rawTemp = parts[2].trim().toFloatOrNull() ?: 0f
-                    temp = if (rawTemp > 0f) "%.1f°C".format(if (rawTemp > 1000f) rawTemp / 1000f else rawTemp) else "--"
-                }
-            } else if (hasShz) {
-                val batch = ShizukuEngine.getSystemStatsBatch()
+            if (batch != null) {
                 val parts = batch.split("|||")
                 if (parts.size == 4) {
                     rawStat = parts[0]
@@ -225,31 +284,44 @@ class MonAiService : Service() {
     }
 
     override fun onDestroy() {
-        restoreChargingFailSafe()
+        // HIGH-5: restore handler lama (idempoten — aman dipanggil berulang)
+        restoreFailSafeUncaughtHandler()
         isRunning = false
-        scope.cancel()
+        monitorScope?.cancel()
+        monitorScope = null
+        // HIGH-5: fail-safe restore saat service dimusnahkan
+        prefsScope.launch { runCatching { chargingController.restoreChargingFailSafe() } }
         super.onDestroy()
     }
 
+    private fun restoreFailSafeUncaughtHandler() {
+        val prev = previousUncaughtHandler
+        if (prev != null) {
+            Thread.setDefaultUncaughtExceptionHandler(prev)
+            previousUncaughtHandler = null
+        }
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
-        restoreChargingFailSafe()
+        prefsScope.launch { runCatching { chargingController.restoreChargingFailSafe() } }
         super.onTaskRemoved(rootIntent)
     }
 
-    private fun startMonitoringLoop() {
+    private fun startMonitoringLoop(scope: CoroutineScope) {
         scope.launch {
             val cachedHasRoot = RootEngine.hasRoot()
             val cachedHasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
 
             while (isActive && isRunning) {
                 val focusInfo = getFocusedAppInfo(this@MonAiService, cachedHasRoot, cachedHasShizuku)
-                
+
                 var freq = "--"
                 var temp = "--"
                 var rawStat: String? = null
 
                 if (cachedHasRoot) {
                     val batch = RootEngine.getSystemStatsBatch()
+                    TelemetryCache.publishBatch(batch)
                     val parts = batch.split("|||")
                     if (parts.size == 4) {
                         rawStat = parts[0]
@@ -259,6 +331,7 @@ class MonAiService : Service() {
                     }
                 } else if (cachedHasShizuku) {
                     val batch = ShizukuEngine.getSystemStatsBatch()
+                    TelemetryCache.publishBatch(batch)
                     val parts = batch.split("|||")
                     if (parts.size == 4) {
                         rawStat = parts[0]
@@ -271,25 +344,9 @@ class MonAiService : Service() {
                 val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                if (cachedHasRoot && isChargeLimitEnabled) {
-                    if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
-                        ChargingEngine.setChargingEnabled(false)
-                        isChargePausedByLimit = true
-                    } else if (bat.percentage < (chargeLimitPct - 3) && isChargePausedByLimit) {
-                        ChargingEngine.setChargingEnabled(true)
-                        isChargePausedByLimit = false
-                    }
-                }
-
-                if (cachedHasRoot && isThermalProtectEnabled && bat.isCharging) {
-                    if (bat.tempC > 42.0 && !isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(500)
-                        isThermalThrottled = true
-                    } else if (bat.tempC < 38.0 && isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
-                        isThermalThrottled = false
-                    }
-                }
+                // HIGH-6/NEW-HIGH-B: logika charging TIDAK lagi ditulis inline di sini —
+                // SEMUA lewat ChargingController (satu penulis)
+                chargingController.applyMonitoringLogic(bat.percentage, bat.tempC, bat.isCharging)
 
                 val notif = buildNotification(focusInfo, freq, temp, cpuPct, bat)
                 val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -349,7 +406,7 @@ class MonAiService : Service() {
         return try {
             val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val end = System.currentTimeMillis()
-            val begin = end - 15_000L
+            val begin = end - USAGE_EVENTS_INTERVAL_MS
             val events = usm.queryEvents(begin, end)
             val event = UsageEvents.Event()
             var lastPkg: String? = null
@@ -427,7 +484,13 @@ class MonAiService : Service() {
     private fun getBatteryPowerInfo(ctx: Context): BatteryPowerInfo {
         return try {
             val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            val batteryStatus: Intent? = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            // HIGH-21: registerReceiver dengan RECEIVER_NOT_EXPORTED (aman untuk API 33+/34)
+            val batteryStatus: Intent? = ContextCompat.registerReceiver(
+                ctx,
+                null,
+                IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
 
             val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
             val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
@@ -445,7 +508,9 @@ class MonAiService : Service() {
             }
 
             var currentMa = if (abs(currentNow) > 10000) currentNow / 1000 else currentNow
-            if (currentMa == 0) currentMa = 250
+            // MEDIUM-1 (lanjutan): 0 mA ditampilkan sebagai 0 (bukan asumsi 250) —
+            // UI menampilkan "--" untuk nilai tidak diketahui
+            if (currentMa == 0) currentMa = 0
 
             BatteryPowerInfo(isCharging, currentMa, pct, tempC)
         } catch (_: Exception) {
@@ -457,7 +522,7 @@ class MonAiService : Service() {
         val paths = listOf(
             "/sys/class/power_supply/battery/current_now",
             "/sys/class/power_supply/bms/current_now",
-            "/sys/class/power_supply/battery/batt_current_now"
+            "/sys/class/power_supply/battery/batt_current_now",
         )
         var valRead = 0
         for (p in paths) {
@@ -475,54 +540,58 @@ class MonAiService : Service() {
         cpuFreq: String,
         cpuTemp: String,
         cpuUsagePct: Int,
-        bat: BatteryPowerInfo
+        bat: BatteryPowerInfo,
     ): Notification {
-        val openAppIntent = PendingIntent.getActivity(
+        val openAppIntent = cachedOpenIntent ?: PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        ).also { cachedOpenIntent = it }
 
-        val perfIntent = PendingIntent.getService(
+        val perfIntent = cachedPerfIntent ?: PendingIntent.getService(
             this, 1, Intent(this, MonAiService::class.java).apply {
                 action = ACTION_SET_PROFILE
                 putExtra(EXTRA_PROFILE, OptProfile.PERFORMANCE.name)
-            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        ).also { cachedPerfIntent = it }
 
-        val balIntent = PendingIntent.getService(
+        val balIntent = cachedBalIntent ?: PendingIntent.getService(
             this, 2, Intent(this, MonAiService::class.java).apply {
                 action = ACTION_SET_PROFILE
                 putExtra(EXTRA_PROFILE, OptProfile.BALANCED.name)
-            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        ).also { cachedBalIntent = it }
 
-        val saveIntent = PendingIntent.getService(
+        val saveIntent = cachedSaveIntent ?: PendingIntent.getService(
             this, 3, Intent(this, MonAiService::class.java).apply {
                 action = ACTION_SET_PROFILE
                 putExtra(EXTRA_PROFILE, OptProfile.BATTERY.name)
-            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        ).also { cachedSaveIntent = it }
 
-        val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == "MonProject") "MonProject • Dashboard Active" else "MonProject • ${focus.appLabel}"
+        val ctrl = chargingController
+        val appName = getString(R.string.app_name)
+        val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == appName) "$appName • Dashboard Active" else "$appName • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
-        
+
         // FIX: Ambil Free RAM lokal, tidak butuh Root
         val ramSnap = MonitorEngine.getRamSnapshot()
         val ramAppStr = "${ramSnap.availMb} MB"
 
-        val powerText = if (isChargePausedByLimit) {
-            "Paused (Limit $chargeLimitPct%)"
-        } else if (isThermalThrottled) {
+        // MEDIUM-1 lanjutan: 0 mA tidak diketahui → tampilkan "--"
+        val currentDisplay = if (bat.currentMa != 0) "${abs(bat.currentMa)} mA" else "--"
+        val powerText = if (ctrl.isChargePausedByLimit) {
+            "Paused (Limit ${ctrl.chargeLimitPct}%)"
+        } else if (ctrl.isThermalThrottled) {
             "Throttled (Thermal)"
         } else if (bat.isCharging) {
-            "+${abs(bat.currentMa)} mA (Charging)"
+            "+$currentDisplay (Charging)"
         } else {
-            "-${abs(bat.currentMa)} mA (Discharge)"
+            "-$currentDisplay (Discharge)"
         }
 
         val powerColor = ContextCompat.getColor(
             this,
-            if (bat.isCharging) R.color.notif_power_charge else R.color.notif_power_discharge
+            if (bat.isCharging) R.color.notif_power_charge else R.color.notif_power_discharge,
         )
         val formattedTemp = "%.1f".format(bat.tempC)
 
@@ -550,7 +619,7 @@ class MonAiService : Service() {
             if (showNotifRam) setTextViewText(R.id.txt_col_ram, "RAM: $ramAppStr")
             if (showNotifCpu) setTextViewText(R.id.txt_col_cpu, "CPU: $cpuUsagePct% • $cpuFreq")
             if (showNotifPower) {
-                setTextViewText(R.id.txt_col_power, "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA")
+                setTextViewText(R.id.txt_col_power, "${if (bat.isCharging) "+" else "-"}${if (bat.currentMa != 0) abs(bat.currentMa) else "--"} mA")
                 setTextColor(R.id.txt_col_power, powerColor)
             }
         }
@@ -613,7 +682,7 @@ class MonAiService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID, "MonProject Live Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_LOW,
             ).apply { description = "System Engine & Battery Monitor" }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)

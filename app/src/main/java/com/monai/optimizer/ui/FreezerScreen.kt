@@ -41,8 +41,11 @@ private enum class FreezerFilter(val label: String) {
     ALL("All"), USER("User"), SYSTEM("System"), FROZEN("Frozen")
 }
 
-// ── MEMORY CACHE IKON (Super Smooth 60/120 FPS Scroll) ─────────────────
-private val iconCache = LruCache<String, ImageBitmap>(80)
+// ── MEMORY CACHE IKON (Super Smooth 60/120 FPS Scroll) ──────────────
+// HIGH-18: ikon di-resize ke 128px (bukan 192+) dan cache 48 item →
+// memori turun dari ~11,5 MB (80×192px ARGB) ke ~3 MB (48×128px ARGB).
+private val iconCache = LruCache<String, ImageBitmap>(48)
+private const val ICON_MAX_PX = 128
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -362,9 +365,15 @@ private fun FreezerAppItem(
 }
 
 private fun Drawable.toBitmap(): Bitmap {
-    if (this is BitmapDrawable && bitmap != null) return bitmap
-    val w = intrinsicWidth.coerceIn(1, 192)
-    val h = intrinsicHeight.coerceIn(1, 192)
+    if (this is BitmapDrawable && bitmap != null) {
+        val src = bitmap
+        val w = src.width.coerceIn(1, ICON_MAX_PX)
+        val h = src.height.coerceIn(1, ICON_MAX_PX)
+        if (src.width <= ICON_MAX_PX && src.height <= ICON_MAX_PX) return src
+        return Bitmap.createScaledBitmap(src, w, h, true)
+    }
+    val w = intrinsicWidth.coerceIn(1, ICON_MAX_PX)
+    val h = intrinsicHeight.coerceIn(1, ICON_MAX_PX)
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     setBounds(0, 0, canvas.width, canvas.height)

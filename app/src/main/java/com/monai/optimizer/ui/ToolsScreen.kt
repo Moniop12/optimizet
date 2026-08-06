@@ -100,10 +100,18 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
             enabled = hasControl,
             isRunning = vm.runningTools["restrict_bg"] == true
         ) {
-            vm.runTool(
-                ctx, "restrict_bg", "Restrict Background Activity",
-                "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg RUN_IN_BACKGROUND ignore; appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; done; echo done"
-            ) { ShizukuEngine.restrictBackground() }
+            vm.restrictBackground(ctx)
+        }
+
+        ToolActionRow(
+            icon = Icons.Filled.Undo,
+            title = "Restore Background Restrictions",
+            desc = "Kembalikan appops RUN_IN_BACKGROUND ke status semula",
+            accent = CleanPurple,
+            enabled = vm.hasRoot,
+            isRunning = vm.runningTools["restore_bg"] == true
+        ) {
+            vm.restoreBackgroundRestrictions(ctx)
         }
 
         // ── FITUR BARU ANTI GIMIK: System-Wide Private DNS ───────────────
@@ -119,29 +127,18 @@ fun ToolsScreen(vm: MainViewModel, onOpenCharging: () -> Unit, onOpenFreezer: ()
         ToolActionRow(
             icon = Icons.Filled.Memory,
             title = "Deep RAM Cleaner",
-            desc = "Stop background tasks & flush memory",
+            desc = "Trim memory semua app pihak-3 (aman — tanpa kill paksa)",
             accent = CyanGlow,
             enabled = hasControl,
             isRunning = vm.runningTools["ram_clean"] == true
         ) {
-            vm.runTool(ctx, "ram_clean", "Clean RAM", "am kill-all; cmd activity kill-all") { ShizukuEngine.killBgApps() }
-        }
-
-        ToolActionRow(
-            icon = Icons.Filled.DeleteSweep,
-            title = "Drop Page Cache",
-            desc = "sync; echo 3 > /proc/sys/vm/drop_caches",
-            accent = PurpleGlow,
-            enabled = vm.hasRoot,
-            isRunning = vm.runningTools["drop_cache"] == true
-        ) {
-            vm.runTool(ctx, "drop_cache", "Drop Page Cache", "sync; echo 3 > /proc/sys/vm/drop_caches") { com.monai.optimizer.optimizer.SCmd(false, "", "") }
+            vm.trimMemorySafe(ctx)
         }
 
         ToolActionRow(
             icon = Icons.Filled.Delete,
             title = "Clear System Caches",
-            desc = "Trim & flush app cache",
+            desc = "Trim & flush app cache (mekanisme resmi Android)",
             accent = PurpleGlow,
             enabled = hasControl,
             isRunning = vm.runningTools["clear_cache"] == true
