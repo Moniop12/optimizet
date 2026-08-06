@@ -669,7 +669,7 @@ class MainViewModel : ViewModel() {
 
             val r: SCmd = if (hasRoot) {
                 val rootRes = RootEngine.su(
-                    "for pkg in \\$(pm list packages -3 | cut -d: -f2); do appops set \\$pkg RUN_IN_BACKGROUND ignore; appops set \\$pkg RUN_ANY_IN_BACKGROUND ignore; done; echo done",
+                    "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg RUN_IN_BACKGROUND ignore; appops set \$pkg RUN_ANY_IN_BACKGROUND ignore; done; echo done",
                 )
                 SCmd(rootRes.success, rootRes.output, rootRes.cmd)
             } else {
