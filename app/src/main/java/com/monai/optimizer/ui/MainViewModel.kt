@@ -31,6 +31,7 @@ import com.monai.optimizer.optimizer.OptProfile
 import com.monai.optimizer.optimizer.RootEngine
 import com.monai.optimizer.optimizer.SCmd
 import com.monai.optimizer.optimizer.ShizukuEngine
+import com.monai.optimizer.optimizer.SoftFreezeEngine
 import com.monai.optimizer.service.MonAiService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
