@@ -24,4 +24,8 @@
     <color name="notif_badge_bg">#1CFFFFFF</color>
     <color name="notif_badge_stroke">#26FFFFFF</color>
     <color name="notif_divider">#20FFFFFF</color>
+
+    <!-- V3: aksen pastel blue untuk dark mode -->
+    <color name="notif_accent">#8AB0F8</color>
+    <color name="notif_progress_track">#338AB0F8</color>
 </resources>

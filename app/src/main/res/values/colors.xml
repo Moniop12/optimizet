@@ -27,4 +27,8 @@
     <color name="notif_badge_bg">#141A1B20</color>
     <color name="notif_badge_stroke">#1F000000</color>
     <color name="notif_divider">#14000000</color>
+
+    <!-- V3: aksen pastel blue konsisten dgn tema V2 (icon & about banner) -->
+    <color name="notif_accent">#5B8DEF</color>
+    <color name="notif_progress_track">#1A5B8DEF</color>
 </resources>

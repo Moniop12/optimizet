@@ -62,7 +62,9 @@ class MonAiService : Service() {
 
     companion object {
         const val CHANNEL_ID = "monai_live_channel"
+        const val CHANNEL_ID_RESULT = "monai_result_channel"
         const val NOTIF_ID = 9901
+        const val NOTIF_ID_RESULT = 9902
 
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
@@ -205,10 +207,32 @@ class MonAiService : Service() {
         tempLogJob?.cancel()
         tempNotifLogMsg = msg
         triggerNotificationRefresh()
+
+        val accent = ContextCompat.getColor(this, R.color.notif_accent)
+        val openAppIntent = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val resultNotif = NotificationCompat.Builder(this, CHANNEL_ID_RESULT)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(accent)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(msg)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(msg))
+            .setContentIntent(openAppIntent)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(false)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .build()
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIF_ID_RESULT, resultNotif)
+
         tempLogJob = scope.launch {
             delay(4000L)
             tempNotifLogMsg = null
             triggerNotificationRefresh()
+            manager.cancel(NOTIF_ID_RESULT)
         }
     }
 
@@ -253,6 +277,11 @@ class MonAiService : Service() {
         restoreChargingFailSafe()
         isRunning = false
         serviceJob.cancel()
+        val prev = previousUncaughtHandler
+        if (prev != null) {
+            Thread.setDefaultUncaughtExceptionHandler(prev)
+            previousUncaughtHandler = null
+        }
         super.onDestroy()
     }
 
@@ -602,54 +631,57 @@ class MonAiService : Service() {
                 setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
                 setTextColor(R.id.txt_exp_power_val, powerColor)
             }
-
-            if (showNotifProfiles) {
-                setViewVisibility(R.id.btn_notif_perf, View.VISIBLE)
-                setViewVisibility(R.id.btn_notif_bal, View.VISIBLE)
-                setViewVisibility(R.id.btn_notif_save, View.VISIBLE)
-
-                setTextViewText(R.id.btn_notif_perf, labelPerf)
-                setTextViewText(R.id.btn_notif_bal, labelBal)
-                setTextViewText(R.id.btn_notif_save, labelSave)
-
-                setInt(R.id.btn_notif_perf, "setBackgroundResource", if (isPerf) R.drawable.notif_btn_bg_perf_active else R.drawable.notif_btn_bg_perf)
-                setInt(R.id.btn_notif_bal, "setBackgroundResource", if (isBal) R.drawable.notif_btn_bg_bal_active else R.drawable.notif_btn_bg_bal)
-                setInt(R.id.btn_notif_save, "setBackgroundResource", if (isSave) R.drawable.notif_btn_bg_save_active else R.drawable.notif_btn_bg_save)
-
-                setTextColor(R.id.btn_notif_perf, if (isPerf) whiteColor else perfColor)
-                setTextColor(R.id.btn_notif_bal, if (isBal) whiteColor else balColor)
-                setTextColor(R.id.btn_notif_save, if (isSave) whiteColor else saveColor)
-
-                setOnClickPendingIntent(R.id.btn_notif_perf, perfIntent)
-                setOnClickPendingIntent(R.id.btn_notif_bal, balIntent)
-                setOnClickPendingIntent(R.id.btn_notif_save, saveIntent)
-            } else {
-                setViewVisibility(R.id.btn_notif_perf, View.GONE)
-                setViewVisibility(R.id.btn_notif_bal, View.GONE)
-                setViewVisibility(R.id.btn_notif_save, View.GONE)
-            }
+            setProgressBar(R.id.progress_battery, 100, bat.percentage, false)
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(this, R.color.notif_accent))
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setCustomContentView(viewsCollapsed)
             .setCustomBigContentView(viewsExpanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentTitle(displayTitle)
+            .setContentText("$profileLabel · RAM: $ramAppStr · CPU: $cpuUsagePct% · $powerText")
+            .apply {
+                if (showNotifProfiles) {
+                    addAction(R.drawable.ic_notification, labelPerf, perfIntent)
+                    addAction(R.drawable.ic_notification, labelBal, balIntent)
+                    addAction(R.drawable.ic_notification, labelSave, saveIntent)
+                }
+            }
             .build()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val live = NotificationChannel(
                 CHANNEL_ID, "MonProject Live Service",
                 NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "System Engine & Battery Monitor" }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            ).apply {
+                description = "System Engine & Battery Monitor (silent, ongoing)"
+                setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+            }
+            manager.createNotificationChannel(live)
+
+            val result = NotificationChannel(
+                CHANNEL_ID_RESULT, "MonProject Status",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "One-time status messages from optimization tasks"
+                setShowBadge(true)
+            }
+            manager.createNotificationChannel(result)
         }
     }
 }
