@@ -59,20 +59,10 @@ fun HomeScreen(vm: MainViewModel, onOpenAbout: () -> Unit) {
         }
     )
 
-    // V4: tombol info di header juga jadi pintu izin overlay (bukan tombol baru)
+    // V4.1: ikon Info MURNI membuka About (feedback user poin 6).
+    // Flow izin (notifikasi + overlay) dipindah semua ke ikon bell.
     fun handleInfoClick() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
-            Toast.makeText(ctx, "Grant overlay permission to open the floating panel", Toast.LENGTH_SHORT).show()
-            runCatching {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${ctx.packageName}")
-                )
-                ctx.startActivity(intent)
-            }
-        } else {
-            onOpenAbout()
-        }
+        onOpenAbout()
     }
 
     Column(
@@ -111,12 +101,32 @@ fun HomeScreen(vm: MainViewModel, onOpenAbout: () -> Unit) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { handleInfoClick() }) {
-                    Icon(Icons.Outlined.Info, "About & Overlay", tint = TextTertiary)
+                    Icon(Icons.Outlined.Info, "About", tint = TextTertiary)
                 }
 
+                // V4.1 (poin 6): ikon bell = pintu SEMUA flow izin.
+                // 1) Izin notifikasi (POST_NOTIFICATIONS) — jika belum granted → minta.
+                // 2) Izin overlay (SYSTEM_ALERT_WINDOW) — jika belum granted → buka settings overlay.
+                // 3) Jika keduanya sudah → toggle live service.
                 IconButton(onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    val needNotifPerm = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    val needOverlayPerm = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)
+
+                    if (needOverlayPerm) {
+                        Toast.makeText(
+                            ctx,
+                            "Grant overlay permission to use the floating panel",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        runCatching {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${ctx.packageName}")
+                            )
+                            ctx.startActivity(intent)
+                        }
+                    } else if (needNotifPerm) {
                         notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
                         vm.toggleLiveService(ctx)

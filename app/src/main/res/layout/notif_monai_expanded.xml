@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- V4: Expanded view — bersih & modern, tetap ringkas. Header ringkas,
-     battery bar, lalu grid 2 kolom (baterai/suhu, RAM/CPU). Semua ID
-     lama yang dipakai MonAiService dipertahankan. -->
+<!-- V4.1: Expanded view — ringkas & modern. Isi: battery bar + % + suhu +
+     badge mode + nama app yang sedang dibuka. TIDAK ADA chip CPU/RAM/POWER
+     (feedback user poin 1). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -85,107 +85,32 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"/>
 
+    <!-- Nama aplikasi yang sedang dibuka (info foreground app — poin 2) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <LinearLayout
-            android:id="@+id/chip_battery"
+        <TextView
+            android:id="@+id/txt_exp_focus_app"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginEnd="5dp"
-            android:orientation="vertical"
-            android:background="@drawable/notif_chip_bg"
-            android:paddingStart="11dp"
-            android:paddingEnd="11dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="POWER"
-                android:textColor="@color/notif_sub_color"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"/>
-            <TextView
-                android:id="@+id/txt_exp_power_val"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="-714 mA"
-                android:textColor="@color/notif_power_discharge"
-                android:textStyle="bold"
-                android:textSize="12sp"
-                android:singleLine="true"
-                android:ellipsize="end"/>
-        </LinearLayout>
+            android:text="• Home Screen"
+            android:textColor="@color/notif_sub_color"
+            android:textSize="12sp"
+            android:singleLine="true"
+            android:ellipsize="end"/>
 
-        <LinearLayout
-            android:id="@+id/chip_cpu"
-            android:layout_width="0dp"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1.3"
-            android:orientation="vertical"
-            android:background="@drawable/notif_chip_bg"
-            android:paddingStart="11dp"
-            android:paddingEnd="11dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="CPU · FREQ"
-                android:textColor="@color/notif_sub_color"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"/>
-            <TextView
-                android:id="@+id/txt_exp_cpu_val"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="21% · 633 MHz"
-                android:textColor="@color/notif_cpu_color"
-                android:textStyle="bold"
-                android:textSize="12sp"
-                android:singleLine="true"
-                android:ellipsize="end"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/chip_ram"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="5dp"
-            android:orientation="vertical"
-            android:background="@drawable/notif_chip_bg"
-            android:paddingStart="11dp"
-            android:paddingEnd="11dp"
-            android:paddingTop="7dp"
-            android:paddingBottom="7dp">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="FREE RAM"
-                android:textColor="@color/notif_sub_color"
-                android:textSize="9sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"/>
-            <TextView
-                android:id="@+id/txt_exp_ram_val"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="127 MB"
-                android:textColor="@color/notif_ram_color"
-                android:textStyle="bold"
-                android:textSize="12sp"
-                android:singleLine="true"
-                android:ellipsize="end"/>
-        </LinearLayout>
+            android:layout_marginStart="8dp"
+            android:text="Live Service"
+            android:textColor="@color/notif_accent"
+            android:textStyle="bold"
+            android:textSize="10sp"
+            android:singleLine="true"/>
     </LinearLayout>
 </LinearLayout>

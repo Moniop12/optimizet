@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- V4: Notifikasi 1 baris minimalis — isi: baterai + suhu + badge mode.
-     Tidak makan tempat di shade notifikasi. Ketuk notifikasi = buka
-     floating overlay (bukan Activity). -->
+<!-- V4.1: Notifikasi 1 baris minimalis MURNI — isi: ikon baterai + % + suhu
+     + badge mode + teks kecil nama aplikasi yang sedang dibuka.
+     TIDAK ada info CPU/RAM/POWER di collapsed (feedback user poin 1 & 2).
+     Ketuk notifikasi = buka floating overlay (bukan Activity). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -42,10 +43,18 @@
         android:textStyle="bold"
         android:singleLine="true"/>
 
-    <View
+    <!-- Nama aplikasi yang sedang dibuka (teks kecil, ellipsize) -->
+    <TextView
+        android:id="@+id/txt_notif_focus_app"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:text="• Home Screen"
+        android:textColor="@color/notif_sub_color"
+        android:textSize="10sp"
+        android:singleLine="true"
+        android:ellipsize="end"/>
 
     <TextView
         android:id="@+id/txt_notif_status"

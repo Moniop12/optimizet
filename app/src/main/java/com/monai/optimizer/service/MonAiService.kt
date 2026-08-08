@@ -546,11 +546,14 @@ class MonAiService : Service() {
         bat: BatteryPowerInfo
     ): Notification {
         val appNameStr = getString(R.string.app_name)
-        // V4: klik notifikasi → buka floating overlay (bukan Activity)
+        // V4.1: klik notifikasi → buka floating overlay (bukan Activity).
+        // ACTION_TOGGLE_OVERLAY: jika overlay sudah tampil → sembunyikan, jika belum → tampilkan.
+        val overlayToggleIntent = Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_TOGGLE_OVERLAY
+        }
         val openOverlayIntent = PendingIntent.getService(
-            this, 0, Intent(this, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_SHOW
-            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            this, 0, overlayToggleIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val perfIntent = PendingIntent.getService(
@@ -576,9 +579,9 @@ class MonAiService : Service() {
 
         val displayTitle = tempNotifLogMsg ?: if (focus.appLabel == appNameStr) "$appNameStr • Dashboard Active" else "$appNameStr • ${focus.appLabel}"
         val profileLabel = currentActiveProfile?.name ?: "AUTO"
-        
-        val ramSnap = MonitorEngine.getRamSnapshot()
-        val ramAppStr = "${ramSnap.availMb} MB"
+
+        // V4.1: nama aplikasi yang sedang dibuka — tampil di notifikasi (poin 2 user)
+        val focusAppLabel = if (focus.appLabel == appNameStr) "Dashboard Active" else focus.appLabel
 
         val powerText = if (isChargePausedByLimit) {
             "Paused (Limit $chargeLimitPct%)"
@@ -596,40 +599,32 @@ class MonAiService : Service() {
         )
         val formattedTemp = "%.1f".format(bat.tempC)
 
-        val isPerf = currentActiveProfile == OptProfile.PERFORMANCE
-        val isBal = currentActiveProfile == OptProfile.BALANCED
-        val isSave = currentActiveProfile == OptProfile.BATTERY
-
-        val labelPerf = if (isPerf) "\u2713 PERF" else "PERF"
-        val labelBal = if (isBal) "\u2713 BALANCED" else "BALANCED"
-        val labelSave = if (isSave) "\u2713 SAVER" else "SAVER"
-
-        val perfColor = ContextCompat.getColor(this, R.color.notif_perf_color)
-        val balColor = ContextCompat.getColor(this, R.color.notif_bal_color)
-        val saveColor = ContextCompat.getColor(this, R.color.notif_save_color)
-        val whiteColor = ContextCompat.getColor(this, R.color.notif_btn_active_text)
-
-        // V4: collapsed = 1 baris minimalis (baterai + suhu + badge mode)
+        // V4.1: collapsed = 1 baris minimalis MURNI (baterai + suhu + badge mode + app fokus).
+        // HAPUS chip CPU/RAM/POWER dari notifikasi (feedback user poin 1).
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
             setTextViewText(R.id.txt_notif_battery, "${bat.percentage}%")
             setTextColor(R.id.txt_notif_battery, powerColor)
             setTextViewText(R.id.txt_notif_temp, "${formattedTemp}\u00b0C")
             setTextViewText(R.id.txt_notif_status, profileLabel)
+            setTextViewText(R.id.txt_notif_focus_app, "\u2022 $focusAppLabel")
         }
 
-        // V4: expanded = ringkas & modern (bar baterai + 3 chip statistik)
+        // V4.1: expanded = ringkas (bar baterai + % + suhu + badge + app fokus). Tanpa chip.
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
             setTextViewText(R.id.txt_exp_battery_pct, "${bat.percentage}%")
             setTextColor(R.id.txt_exp_battery_pct, powerColor)
             setTextViewText(R.id.txt_exp_temp_val, "${formattedTemp}\u00b0C")
             setTextViewText(R.id.txt_exp_mode_badge, profileLabel)
-
-            setTextViewText(R.id.txt_exp_power_val, powerText)
-            setTextColor(R.id.txt_exp_power_val, powerColor)
-            setTextViewText(R.id.txt_exp_cpu_val, "$cpuUsagePct% \u00b7 $cpuFreq")
-            setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
+            setTextViewText(R.id.txt_exp_focus_app, "\u2022 $focusAppLabel")
             setProgressBar(R.id.progress_battery, 100, bat.percentage, false)
         }
+
+        val isPerf = currentActiveProfile == OptProfile.PERFORMANCE
+        val isBal = currentActiveProfile == OptProfile.BALANCED
+        val isSave = currentActiveProfile == OptProfile.BATTERY
+        val labelPerf = if (isPerf) "\u2713 PERF" else "PERF"
+        val labelBal = if (isBal) "\u2713 BALANCED" else "BALANCED"
+        val labelSave = if (isSave) "\u2713 SAVER" else "SAVER"
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
