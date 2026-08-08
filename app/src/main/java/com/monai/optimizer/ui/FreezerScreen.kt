@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -208,8 +209,9 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     items(filtered, key = { it.pkg }) { app ->
                         FreezerAppItem(
-                            item     = app,
-                            canAct   = (vm.hasShizuku || vm.hasRoot) && !app.isCritical,
+                            vm = vm,
+                            item = app,
+                            canAct = (vm.hasShizuku || vm.hasRoot) && !app.isCritical,
                             isLoading = vm.freezerActionPkg == app.pkg,
                             onToggle = { vm.toggleFreezeApp(ctx, app) }
                         )
@@ -223,6 +225,7 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
 
 @Composable
 private fun FreezerAppItem(
+    vm: MainViewModel,
     item: FrozenAppItem,
     canAct: Boolean,
     isLoading: Boolean,
@@ -332,27 +335,43 @@ private fun FreezerAppItem(
                 else            -> "Freeze"
             }
 
-            FilledTonalButton(
-                onClick = onToggle,
-                enabled = canAct && !isLoading,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor         = btnColor.copy(alpha = 0.10f),
-                    contentColor           = btnColor,
-                    disabledContainerColor = AppSurfaceVariant,
-                    disabledContentColor   = TextDisabled,
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        Modifier.size(13.dp),
-                        strokeWidth = 1.6.dp,
-                        color = btnColor
-                    )
-                } else {
-                    Text(btnLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilledTonalButton(
+                    onClick = onToggle,
+                    enabled = canAct && !isLoading,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor         = btnColor.copy(alpha = 0.10f),
+                        contentColor           = btnColor,
+                        disabledContainerColor = AppSurfaceVariant,
+                        disabledContentColor   = TextDisabled,
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            Modifier.size(13.dp),
+                            strokeWidth = 1.6.dp,
+                            color = btnColor
+                        )
+                    } else {
+                        Text(btnLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                if (item.isSystem && !item.isCritical) {
+                    OutlinedButton(
+                        onClick = { vm.debloatSystemApp(ctx, item) },
+                        enabled = canAct && !isLoading,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp),
+                        border = BorderStroke(1.dp, RedErr.copy(alpha = 0.4f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RedErr)
+                    ) {
+                        Icon(Icons.Filled.Delete, "Debloat", modifier = Modifier.size(14.dp))
+                    }
                 }
             }
         }
@@ -361,7 +380,6 @@ private fun FreezerAppItem(
 
 private fun Drawable.toBitmap(): Bitmap {
     if (this is BitmapDrawable && bitmap != null) return bitmap
-    // Optimum 96px for 42dp icon display -> saves 75% memory
     val w = intrinsicWidth.coerceIn(1, 96)
     val h = intrinsicHeight.coerceIn(1, 96)
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)

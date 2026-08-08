@@ -275,4 +275,17 @@ object RootEngine {
     fun getEstimatedCacheSizeMb(): Long = try {
         su("du -sm /data/user/0/*/cache 2>/dev/null | awk '{s+=\$1} END {print s}'").output.trim().toLongOrNull() ?: 0L
     } catch (_: Exception) { 0L }
+
+    // --- FITUR BARU ---
+    fun blockWakelocks(): CmdResult = su(
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg WAKE_LOCK ignore 2>/dev/null; done; echo done"
+    )
+
+    fun forceGmsDoze(): CmdResult = su(
+        "dumpsys deviceidle whitelist -com.google.android.gms 2>/dev/null; dumpsys deviceidle whitelist -com.android.vending 2>/dev/null; echo done"
+    )
+
+    fun debloatApp(pkg: String): CmdResult = su("pm uninstall -k --user 0 $pkg 2>/dev/null")
+
+    fun runFsTrim(): CmdResult = su("sm fstrim 2>/dev/null || fstrim -v /data 2>/dev/null; echo done")
 }

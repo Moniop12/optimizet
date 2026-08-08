@@ -84,7 +84,6 @@ object ShizukuEngine {
         }
     }
 
-    // BATCH READ: Menggabungkan beberapa bacaan jadi 1 eksekusi sh (Hemat Baterai)
     fun getSystemStatsBatch(): String {
         val cmd = "cat /proc/stat 2>/dev/null | head -n 1; echo '|||'; " +
                 "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null; echo '|||'; " +
@@ -188,11 +187,6 @@ object ShizukuEngine {
         sh("dumpsys deviceidle disable")
     )
 
-    // FIX (M2): sebelumnya blok if/elif/else selalu berakhir dengan `echo ...` sebagai
-    // perintah TERAKHIR, jadi exit code shell SELALU 0 walau cabang "else echo failed"
-    // yang dieksekusi — sh() menilai code==0 sebagai sukses, UI pun menampilkan
-    // "X frozen" padahal app TIDAK dibekukan. Sekarang tiap cabang diakhiri `exit 0`
-    // / `exit 1` eksplisit sehingga exit code selalu mencerminkan hasil asli.
     fun freezeApp(pkg: String): SCmd =
         sh("if pm disable-user --user 0 $pkg 2>/dev/null; then echo frozen; exit 0; elif pm suspend --user 0 $pkg 2>/dev/null; then echo frozen; exit 0; else echo failed; exit 1; fi")
 
@@ -206,4 +200,21 @@ object ShizukuEngine {
             .map { it.removePrefix("package:").trim() }
             .toSet()
     }
+
+    // --- FITUR BARU ---
+    fun blockWakelocks(): SCmd = sh(
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+        "appops set \$pkg WAKE_LOCK ignore 2>/dev/null; " +
+        "done; echo done"
+    )
+
+    fun forceGmsDoze(): SCmd = sh(
+        "dumpsys deviceidle whitelist -com.google.android.gms 2>/dev/null; " +
+        "dumpsys deviceidle whitelist -com.android.vending 2>/dev/null; " +
+        "echo done"
+    )
+
+    fun debloatApp(pkg: String): SCmd = sh("pm uninstall -k --user 0 $pkg 2>/dev/null")
+
+    fun runFsTrim(): SCmd = sh("sm fstrim 2>/dev/null || fstrim -v /data 2>/dev/null; echo done")
 }

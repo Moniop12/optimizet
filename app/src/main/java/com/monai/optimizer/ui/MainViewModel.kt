@@ -483,7 +483,6 @@ class MainViewModel : ViewModel() {
             val cmd = "sysctl -w net.ipv4.tcp_congestion_control=$algo"
             val r = RootEngine.su(cmd)
             
-            // Validasi: baca ulang state dari kernel
             val readBack = RootEngine.su("sysctl -n net.ipv4.tcp_congestion_control").output.trim()
             val finalSuccess = r.success && readBack == algo
             
@@ -966,6 +965,37 @@ class MainViewModel : ViewModel() {
                     statusSuccess = false
                 }
                 addLogEntry(LogEntry(sdf.format(Date()), r.cmd, r.success))
+            }
+        }
+    }
+
+    fun debloatSystemApp(ctx: Context, item: FrozenAppItem) {
+        if (item.isCritical) {
+            Toast.makeText(ctx, "System App ${item.name} is protected to prevent bootloops!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { freezerActionPkg = item.pkg }
+
+            val r: SCmd = if (hasRoot) {
+                val rootRes = RootEngine.debloatApp(item.pkg)
+                SCmd(rootRes.success, rootRes.output, rootRes.cmd)
+            } else {
+                ShizukuEngine.debloatApp(item.pkg)
+            }
+
+            withContext(Dispatchers.Main) {
+                freezerActionPkg = null
+                if (r.output.contains("Success") || r.success) {
+                    freezerApps = freezerApps.filter { it.pkg != item.pkg }
+                    statusMsg = "${item.name} successfully debloated"
+                    statusSuccess = true
+                } else {
+                    statusMsg = "Failed to debloat ${item.name}"
+                    statusSuccess = false
+                }
+                addLogEntry(LogEntry(sdf.format(Date()), r.cmd, statusSuccess ?: false))
             }
         }
     }

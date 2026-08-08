@@ -135,7 +135,7 @@ fun ToolsScreen(
                 icon = Icons.Filled.CleaningServices,
                 accent = PurpleGlow,
                 title = "Maintenance Hub",
-                subtitle = "Kill Background Apps, Clear Caches & Aggressive Doze",
+                subtitle = "Storage FSTrim, Kill Background Apps, Clear Caches & GMS Doze",
                 onClick = onOpenMaintenanceHub
             )
         }
@@ -231,7 +231,7 @@ fun AppHubScreen(vm: MainViewModel, onOpenFreezer: () -> Unit, onBack: () -> Uni
                 icon = Icons.Filled.AcUnit,
                 accent = CleanPurple,
                 title = "System App Freezer",
-                subtitle = "Disable or suspend background apps completely",
+                subtitle = "Disable, suspend, or uninstall apps completely",
                 onClick = onOpenFreezer
             )
 
@@ -248,6 +248,21 @@ fun AppHubScreen(vm: MainViewModel, onOpenFreezer: () -> Unit, onBack: () -> Uni
                         ctx, "standby_buckets", "Standby Buckets",
                         "for pkg in \$(pm list packages -3 | cut -d: -f2); do am set-standby-bucket \$pkg restricted 2>/dev/null; done; echo done"
                     ) { ShizukuEngine.setStandbyBucketsRestricted() }
+                }
+            )
+
+            ToolActionRow(
+                icon = Icons.Filled.Lock,
+                title = "Block App Wakelocks",
+                desc = "Prevent 3rd-party apps from waking up the CPU (Fix Standby Drain)",
+                accent = OrangeGlow,
+                enabled = hasControl,
+                isRunning = vm.runningTools["wakelock_block"] == true,
+                onCardClick = {},
+                onRunClick = {
+                    vm.runTool(ctx, "wakelock_block", "Wakelock Blocker", 
+                        "for pkg in \$(pm list packages -3 | cut -d: -f2); do appops set \$pkg WAKE_LOCK ignore 2>/dev/null; done; echo done"
+                    ) { ShizukuEngine.blockWakelocks() }
                 }
             )
 
@@ -284,7 +299,6 @@ fun PerformanceHubScreen(vm: MainViewModel, onBack: () -> Unit) {
         if (vm.freezerApps.isEmpty()) vm.loadFreezerApps(ctx)
     }
 
-    // Hindari Layar Mati saat dexopt jalan lama
     if (vm.isDexoptRunning) {
         val activity = ctx as? Activity
         DisposableEffect(Unit) {
@@ -649,6 +663,19 @@ fun MaintenanceHubScreen(vm: MainViewModel, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ToolActionRow(
+                icon = Icons.Filled.Storage,
+                title = "Trim Storage (fstrim)",
+                desc = "Discard unused blocks on flash storage to speed up writes",
+                accent = EmeraldGlow,
+                enabled = hasControl,
+                isRunning = vm.runningTools["run_fstrim"] == true,
+                onCardClick = {},
+                onRunClick = {
+                    vm.runTool(ctx, "run_fstrim", "Storage Trim", "sm fstrim 2>/dev/null || fstrim -v /data 2>/dev/null; echo done") { ShizukuEngine.runFsTrim() }
+                }
+            )
+
+            ToolActionRow(
                 icon = Icons.Filled.Memory,
                 title = "Kill Background Apps",
                 desc = "Force-stop inactive background processes",
@@ -671,6 +698,21 @@ fun MaintenanceHubScreen(vm: MainViewModel, onBack: () -> Unit) {
                 onCardClick = {},
                 onRunClick = {
                     vm.runTool(ctx, "clear_cache", "Clear System Caches", "cmd package trim-caches 999G") { ShizukuEngine.trimMemory() }
+                }
+            )
+
+            ToolActionRow(
+                icon = Icons.Filled.BatteryAlert,
+                title = "Force GMS Doze",
+                desc = "Remove Google Play Services from battery optimization whitelist",
+                accent = AmberWarn,
+                enabled = hasControl,
+                isRunning = vm.runningTools["gms_doze"] == true,
+                onCardClick = {},
+                onRunClick = {
+                    vm.runTool(ctx, "gms_doze", "Force GMS Doze", 
+                        "dumpsys deviceidle whitelist -com.google.android.gms; dumpsys deviceidle whitelist -com.android.vending; echo done"
+                    ) { ShizukuEngine.forceGmsDoze() }
                 }
             )
 

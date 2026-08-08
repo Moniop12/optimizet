@@ -72,7 +72,7 @@ class MonAiService : Service() {
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
 
         private const val MONITOR_INTERVAL_ON = 12000L
-        private const val MONITOR_INTERVAL_OFF = 60000L // 1 Menit hemat baterai jika layar mati
+        private const val MONITOR_INTERVAL_OFF = 60000L // Hemat baterai saat layar mati
         private const val DUMPSYS_POLL_EVERY = 2
 
         @Volatile var currentActiveProfile: OptProfile? = null
@@ -412,7 +412,7 @@ class MonAiService : Service() {
 
     private fun getFocusedAppViaDumpsys(ctx: Context): AppFocusInfo {
         try {
-            val r = RootEngine.su("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+            val r = RootEngine.su("dumpsys activity activities | grep -E 'ResumedActivity|mCurrentFocus'")
             if (r.success && r.output.isNotBlank()) {
                 val cleanPkg = parsePackageFromDumpsys(r.output)
                 if (!cleanPkg.isNullOrBlank()) {
@@ -426,7 +426,7 @@ class MonAiService : Service() {
 
     private fun getFocusedAppViaShizuku(ctx: Context): AppFocusInfo {
         try {
-            val r = ShizukuEngine.sh("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+            val r = ShizukuEngine.sh("dumpsys activity activities | grep -E 'ResumedActivity|mCurrentFocus'")
             if (r.success && r.output.isNotBlank()) {
                 val cleanPkg = parsePackageFromDumpsys(r.output)
                 if (!cleanPkg.isNullOrBlank()) {
