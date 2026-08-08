@@ -890,6 +890,7 @@ class MainViewModel : ViewModel() {
             withContext(Dispatchers.Main) { freezerLoading = true }
 
             val disabledPkgs = if (hasShizuku || hasRoot) ShizukuEngine.listDisabledPkgs() else emptySet()
+            val softFrozenPkgs = if (hasRoot) SoftFreezeEngine.listSoftFrozen() else emptySet()
 
             val pm = ctx.packageManager
             val pkgs = runCatching { pm.getInstalledPackages(0) }.getOrElse { emptyList() }
@@ -923,7 +924,8 @@ class MainViewModel : ViewModel() {
                         isSystem = isSystem,
                         isFrozen = isDisabled,
                         isDisabled = isDisabled,
-                        isCritical = isCritical
+                        isCritical = isCritical,
+                        isSoftFrozen = pi.packageName in softFrozenPkgs
                     )
                 }
                 .sortedWith(
@@ -970,6 +972,42 @@ class MainViewModel : ViewModel() {
                     statusSuccess = true
                 } else {
                     statusMsg = "Failed to change state for ${item.name}"
+                    statusSuccess = false
+                }
+                addLogEntry(LogEntry(sdf.format(Date()), r.cmd, r.success))
+            }
+        }
+    }
+
+    // Soft Freeze (SIGSTOP) — pelengkap toggleFreezeApp di atas. Butuh root murni (bukan Shizuku,
+    // karena SIGSTOP ke proses app lain perlu privilege langsung, bukan lewat AIDL service standar).
+    fun toggleSoftFreezeApp(ctx: Context, item: FrozenAppItem) {
+        if (item.isCritical) {
+            Toast.makeText(ctx, "System App ${item.name} is protected to prevent bootloops!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!hasRoot) {
+            Toast.makeText(ctx, "Soft Freeze butuh akses Root (belum didukung lewat Shizuku)", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { freezerActionPkg = item.pkg }
+
+            val r = if (item.isSoftFrozen) SoftFreezeEngine.softResume(item.pkg)
+                    else SoftFreezeEngine.softFreeze(item.pkg)
+
+            withContext(Dispatchers.Main) {
+                freezerActionPkg = null
+                if (r.success) {
+                    val nowSoftFrozen = !item.isSoftFrozen
+                    freezerApps = freezerApps.map { app ->
+                        if (app.pkg == item.pkg) app.copy(isSoftFrozen = nowSoftFrozen) else app
+                    }
+                    statusMsg = if (nowSoftFrozen) "${item.name} dipause (soft freeze)" else "${item.name} dilanjutkan"
+                    statusSuccess = true
+                } else {
+                    statusMsg = "Gagal soft-freeze ${item.name}"
                     statusSuccess = false
                 }
                 addLogEntry(LogEntry(sdf.format(Date()), r.cmd, r.success))

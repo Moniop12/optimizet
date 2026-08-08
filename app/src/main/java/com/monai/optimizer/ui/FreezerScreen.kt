@@ -215,8 +215,10 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                         FreezerAppItem(
                             item = app,
                             canAct = (vm.hasShizuku || vm.hasRoot) && !app.isCritical,
+                            canSoftFreeze = vm.hasRoot && !app.isCritical && !app.isLocked,
                             isLoading = vm.freezerActionPkg == app.pkg,
                             onToggle = { vm.toggleFreezeApp(ctx, app) },
+                            onToggleSoftFreeze = { vm.toggleSoftFreezeApp(ctx, app) },
                             onRequestDebloat = { appToDebloat = app }
                         )
                     }
@@ -261,8 +263,10 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
 private fun FreezerAppItem(
     item: FrozenAppItem,
     canAct: Boolean,
+    canSoftFreeze: Boolean,
     isLoading: Boolean,
     onToggle: () -> Unit,
+    onToggleSoftFreeze: () -> Unit,
     onRequestDebloat: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -283,9 +287,10 @@ private fun FreezerAppItem(
     }
 
     val accentColor = when {
-        item.isCritical -> AmberWarn
-        item.isLocked   -> CleanPurple
-        else            -> EmeraldGlow
+        item.isCritical  -> AmberWarn
+        item.isLocked    -> CleanPurple
+        item.isSoftFrozen -> CyanGlow
+        else             -> EmeraldGlow
     }
 
     AppCard {
@@ -317,7 +322,7 @@ private fun FreezerAppItem(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                if (item.isLocked) {
+                if (item.isLocked || item.isSoftFrozen) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -391,6 +396,25 @@ private fun FreezerAppItem(
                         )
                     } else {
                         Text(btnLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
+                // Tombol Soft Freeze (SIGSTOP, pause sementara) — cuma muncul kalau app belum di-hard-freeze
+                if (canSoftFreeze || item.isSoftFrozen) {
+                    OutlinedButton(
+                        onClick = onToggleSoftFreeze,
+                        enabled = (canSoftFreeze || item.isSoftFrozen) && !isLoading,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp),
+                        border = BorderStroke(1.dp, CyanGlow.copy(alpha = 0.4f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanGlow)
+                    ) {
+                        Icon(
+                            if (item.isSoftFrozen) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                            if (item.isSoftFrozen) "Resume" else "Pause",
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
 

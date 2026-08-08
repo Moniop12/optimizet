@@ -10,6 +10,7 @@ data class FrozenAppItem(
     val isFrozen: Boolean,        // Status Freeze (suspended atau disabled)
     val isDisabled: Boolean,      // Status Disabled via pm disable-user
     val isCritical: Boolean = false, // True jika app sistem vital (TIDAK BISA DIBEKUKAN demi keamanan HP)
+    val isSoftFrozen: Boolean = false, // Status Soft Freeze (SIGSTOP, sementara — beda dari hard-freeze di atas)
 ) {
     val isLocked: Boolean get() = isFrozen || isDisabled
 
@@ -20,9 +21,10 @@ data class FrozenAppItem(
     }
 
     val stateLabel: String get() = when {
-        isCritical -> "Protected"
-        isDisabled -> "Disabled"
-        isFrozen   -> "Frozen"
-        else       -> "Active"
+        isCritical  -> "Protected"
+        isDisabled  -> "Disabled"
+        isFrozen    -> "Frozen"
+        isSoftFrozen -> "Paused"
+        else        -> "Active"
     }
 }
