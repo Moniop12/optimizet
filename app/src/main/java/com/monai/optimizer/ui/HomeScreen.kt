@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +42,7 @@ import com.monai.optimizer.ui.components.*
 import com.monai.optimizer.ui.theme.*
 
 @Composable
-fun HomeScreen(vm: MainViewModel) {
+fun HomeScreen(vm: MainViewModel, onOpenAbout: () -> Unit) {
     val ctx = LocalContext.current
 
     val notifPermissionLauncher = rememberLauncherForActivityResult(
@@ -90,6 +91,10 @@ fun HomeScreen(vm: MainViewModel) {
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenAbout) {
+                    Icon(Icons.Outlined.Info, "About", tint = TextTertiary)
+                }
+
                 IconButton(onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {

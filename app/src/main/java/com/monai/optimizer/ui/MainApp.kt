@@ -57,8 +57,9 @@ fun MainApp(vm: MainViewModel) {
     var showNetHub   by remember { mutableStateOf(false) }
     var showMaintHub by remember { mutableStateOf(false) }
     var showAppHub   by remember { mutableStateOf(false) }
+    var showAbout    by remember { mutableStateOf(false) }
 
-    val isSubScreenActive = showCharging || showFreezer || showPerfHub || showNetHub || showMaintHub || showAppHub
+    val isSubScreenActive = showCharging || showFreezer || showPerfHub || showNetHub || showMaintHub || showAppHub || showAbout
 
     // Logika Back Button yang benar (Freezer diutamakan karena dia sub-menu dari AppHub)
     BackHandler(enabled = showFreezer) { showFreezer = false }
@@ -67,6 +68,7 @@ fun MainApp(vm: MainViewModel) {
     BackHandler(enabled = showPerfHub && !showFreezer) { showPerfHub = false }
     BackHandler(enabled = showNetHub && !showFreezer) { showNetHub = false }
     BackHandler(enabled = showMaintHub && !showFreezer) { showMaintHub = false }
+    BackHandler(enabled = showAbout) { showAbout = false }
 
     Scaffold(
         containerColor = DarkBg,
@@ -106,7 +108,7 @@ fun MainApp(vm: MainViewModel) {
                 userScrollEnabled = !isSubScreenActive
             ) { page ->
                 when (screens[page]) {
-                    Screen.Home  -> HomeScreen(vm)
+                    Screen.Home  -> HomeScreen(vm, onOpenAbout = { showAbout = true })
                     Screen.Tools -> ToolsScreen(
                         vm,
                         onOpenCharging = { showCharging = true },
@@ -168,6 +170,15 @@ fun MainApp(vm: MainViewModel) {
                 exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
             ) {
                 FreezerScreen(vm, onBack = { showFreezer = false })
+            }
+
+            // 3. ABOUT (Level 1, dari Home)
+            AnimatedVisibility(
+                visible = showAbout,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                AboutScreen(onBack = { showAbout = false })
             }
         }
     }
