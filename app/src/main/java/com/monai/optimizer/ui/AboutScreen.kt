@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monai.optimizer.BuildConfig
+import com.monai.optimizer.R
 import com.monai.optimizer.ui.components.AppCard
 import com.monai.optimizer.ui.components.SectionLabel
 import com.monai.optimizer.ui.components.SocialIcons
