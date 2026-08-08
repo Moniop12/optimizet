@@ -10,10 +10,14 @@ data class RamSnapshot(val totalMb: Long, val availMb: Long, val usedPct: Int)
  */
 object MonitorEngine {
 
-    @Volatile private var prevIdle  = 0L
-    @Volatile private var prevTotal = 0L
+    // FIX (M1): dulu ada SATU prevIdle/prevTotal global yang dibaca-tulis oleh DUA
+    // konsumen berbeda (service loop 3dtk + ViewModel ticker 2dtk) sehingga delta
+    // CPU% dihitung antar dua titik waktu yang salah (angka jadi 0 / spike acak).
+    // Sekarang setiap konsumen punya state sendiri via consumerId.
+    private data class CpuPrev(var idle: Long = 0L, var total: Long = 0L)
+    private val prevByConsumer = java.util.concurrent.ConcurrentHashMap<String, CpuPrev>()
 
-    fun getCpuUsagePercent(rawProcStatOverride: String? = null): Int {
+    fun getCpuUsagePercent(rawProcStatOverride: String? = null, consumerId: String = "default"): Int {
         return try {
             val line = if (!rawProcStatOverride.isNullOrBlank()) {
                 rawProcStatOverride.lines().firstOrNull { it.startsWith("cpu ") }
@@ -37,12 +41,15 @@ object MonitorEngine {
             val totalIdle = idle + iowait
             val total     = user + nice + system + totalIdle + irq + softirq
 
-            val diffIdle  = totalIdle - prevIdle
-            val diffTotal = total     - prevTotal
-            prevIdle  = totalIdle
-            prevTotal = total
+            val prev = prevByConsumer.getOrPut(consumerId) { CpuPrev() }
+            val diffIdle  = totalIdle - prev.idle
+            val diffTotal = total     - prev.total
+            synchronized(prev) {
+                prev.idle  = totalIdle
+                prev.total = total
+            }
 
-            if (diffTotal == 0L) return 0
+            if (diffTotal <= 0L) return 0
             ((diffTotal - diffIdle) * 100L / diffTotal).toInt().coerceIn(0, 100)
         } catch (_: Exception) { 0 }
     }

@@ -44,31 +44,33 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Log   : Screen("log",   "Log",   Icons.Filled.History)
 }
 
-/**
- * Tab navigation is driven by a HorizontalPager instead of NavHost:
- *  - swipe left/right between Home/Tools/Log with your finger, not just the bottom bar
- *  - tapping a bottom-bar item animates a smooth slide to that page (pagerState.animateScrollToPage)
- *    instead of the abrupt/no-animation swap NavHost gave us before.
- * The Charging sub-screen is a separate overlay (slide-in from the right, like a normal
- * "push" navigation) on top of the pager, with the system back button popping it closed.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainApp(vm: MainViewModel) {
     val screens = listOf(Screen.Home, Screen.Tools, Screen.Log)
     val pagerState = rememberPagerState(pageCount = { screens.size })
     val scope = rememberCoroutineScope()
+
     var showCharging by remember { mutableStateOf(false) }
     var showFreezer  by remember { mutableStateOf(false) }
+    var showPerfHub  by remember { mutableStateOf(false) }
+    var showNetHub   by remember { mutableStateOf(false) }
+    var showMaintHub by remember { mutableStateOf(false) }
+    var showAppHub   by remember { mutableStateOf(false) }
+
+    val isSubScreenActive = showCharging || showFreezer || showPerfHub || showNetHub || showMaintHub || showAppHub
 
     BackHandler(enabled = showCharging) { showCharging = false }
     BackHandler(enabled = showFreezer && !showCharging) { showFreezer = false }
+    BackHandler(enabled = showAppHub && !showFreezer && !showCharging) { showAppHub = false }
+    BackHandler(enabled = showPerfHub && !showAppHub && !showFreezer && !showCharging) { showPerfHub = false }
+    BackHandler(enabled = showNetHub && !showPerfHub && !showAppHub && !showFreezer && !showCharging) { showNetHub = false }
+    BackHandler(enabled = showMaintHub && !showNetHub && !showPerfHub && !showAppHub && !showFreezer && !showCharging) { showMaintHub = false }
 
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            // Hide the bottom bar while detail screens are open, for a focused feel.
-            if (!showCharging && !showFreezer) {
+            if (!isSubScreenActive) {
                 NavigationBar(containerColor = DarkSurface, tonalElevation = 0.dp) {
                     screens.forEachIndexed { index, s ->
                         NavigationBarItem(
@@ -100,14 +102,18 @@ fun MainApp(vm: MainViewModel) {
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                userScrollEnabled = !showCharging
+                userScrollEnabled = !isSubScreenActive
             ) { page ->
                 when (screens[page]) {
                     Screen.Home  -> HomeScreen(vm)
                     Screen.Tools -> ToolsScreen(
                         vm,
                         onOpenCharging = { showCharging = true },
-                        onOpenFreezer  = { showFreezer  = true }
+                        onOpenFreezer  = { showFreezer  = true },
+                        onOpenPerformanceHub = { showPerfHub = true },
+                        onOpenNetworkHub = { showNetHub = true },
+                        onOpenMaintenanceHub = { showMaintHub = true },
+                        onOpenAppHub = { showAppHub = true }
                     )
                     Screen.Log   -> LogScreen(vm)
                 }
@@ -127,6 +133,38 @@ fun MainApp(vm: MainViewModel) {
                 exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
             ) {
                 FreezerScreen(vm, onBack = { showFreezer = false })
+            }
+
+            AnimatedVisibility(
+                visible = showAppHub,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                AppHubScreen(vm, onOpenFreezer = { showFreezer = true }, onBack = { showAppHub = false })
+            }
+
+            AnimatedVisibility(
+                visible = showPerfHub,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                PerformanceHubScreen(vm, onBack = { showPerfHub = false })
+            }
+
+            AnimatedVisibility(
+                visible = showNetHub,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                NetworkHubScreen(vm, onBack = { showNetHub = false })
+            }
+
+            AnimatedVisibility(
+                visible = showMaintHub,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                MaintenanceHubScreen(vm, onBack = { showMaintHub = false })
             }
         }
     }

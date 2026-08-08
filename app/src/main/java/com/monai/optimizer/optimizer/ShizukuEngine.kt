@@ -188,12 +188,16 @@ object ShizukuEngine {
         sh("dumpsys deviceidle disable")
     )
 
-    // FIX: Logika if/elif/else agar exit code mencerminkan hasil asli
+    // FIX (M2): sebelumnya blok if/elif/else selalu berakhir dengan `echo ...` sebagai
+    // perintah TERAKHIR, jadi exit code shell SELALU 0 walau cabang "else echo failed"
+    // yang dieksekusi — sh() menilai code==0 sebagai sukses, UI pun menampilkan
+    // "X frozen" padahal app TIDAK dibekukan. Sekarang tiap cabang diakhiri `exit 0`
+    // / `exit 1` eksplisit sehingga exit code selalu mencerminkan hasil asli.
     fun freezeApp(pkg: String): SCmd =
-        sh("if pm disable-user --user 0 $pkg 2>/dev/null; then echo frozen; elif pm suspend --user 0 $pkg 2>/dev/null; then echo frozen; else echo failed; fi")
+        sh("if pm disable-user --user 0 $pkg 2>/dev/null; then echo frozen; exit 0; elif pm suspend --user 0 $pkg 2>/dev/null; then echo frozen; exit 0; else echo failed; exit 1; fi")
 
     fun unfreezeApp(pkg: String): SCmd =
-        sh("if pm enable --user 0 $pkg 2>/dev/null; then echo active; elif pm unsuspend --user 0 $pkg 2>/dev/null; then echo active; else echo failed; fi")
+        sh("if pm enable --user 0 $pkg 2>/dev/null; then echo active; exit 0; elif pm unsuspend --user 0 $pkg 2>/dev/null; then echo active; exit 0; else echo failed; exit 1; fi")
 
     fun listDisabledPkgs(): Set<String> {
         val raw = sh("pm list packages -d 2>/dev/null").output

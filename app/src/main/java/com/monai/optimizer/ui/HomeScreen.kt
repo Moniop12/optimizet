@@ -85,7 +85,7 @@ fun HomeScreen(vm: MainViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                     )
-                    Text("System Optimizer", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text("System Tweaks", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
@@ -118,7 +118,6 @@ fun HomeScreen(vm: MainViewModel) {
 
         DeviceOverviewCard(vm)
 
-        // PENAMAAN JUJUR & FITUR EFEKTIF: Smooth UI & Dynamic Optimizer Engine
         SystemTweaksCard(vm)
 
         SectionLabel("MANUAL PROFILES")
@@ -139,7 +138,7 @@ fun SystemTweaksCard(vm: MainViewModel) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Filled.AutoAwesome, CyanGlow, active = true)
                     Column {
-                        Text("Smooth UI Engine", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("UI Animation & Refresh Rate", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Text(
                             if (vm.hasRoot) "Dynamic Refresh Rate & 0.5x Window Animations"
                             else if (vm.hasShizuku) "Animation Speed & Refresh Rate (ADB Mode)"
@@ -158,7 +157,7 @@ fun SystemTweaksCard(vm: MainViewModel) {
 
             Row(Modifier.fillMaxWidth()) {
                 Text(
-                    "• Engine Status: ${if (vm.aiOptimizerEnabled) "ACTIVE (0.5x Scale + High Refresh Rate)" else "DEFAULT"}",
+                    "• Status: ${if (vm.aiOptimizerEnabled) "ACTIVE (0.5x Scale + Max Refresh Rate)" else "DEFAULT"}",
                     color = if (vm.aiOptimizerEnabled) CyanGlow else TextTertiary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -218,7 +217,6 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     )
                 }
 
-                // ── CPU Usage % — works for ALL (root/Shizuku/none) ───────────
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     val cpuColor = when {
                         vm.cpuUsagePct > 85 -> RedErr
@@ -240,9 +238,7 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                     )
                 }
 
-                // ── CPU Freq, Temp, Governor — root + partial Shizuku ─────────
                 if (s.hasRoot) {
-                    // Full row: freq/temp from kernel, ZRAM, governor
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         StatBlock("CPU FREQ", vm.cpuFreq)
                         StatBlock("TEMP", vm.cpuTemp)
@@ -250,7 +246,6 @@ fun DeviceOverviewCard(vm: MainViewModel) {
                         StatBlock("GOVERNOR", vm.currentGov)
                     }
                 } else if (s.hasShizuku) {
-                    // Shizuku/non-root: freq & temp dari sysfs (MonitorEngine)
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         StatBlock("CPU FREQ", vm.cpuFreq)
                         StatBlock("TEMP", vm.cpuTemp)

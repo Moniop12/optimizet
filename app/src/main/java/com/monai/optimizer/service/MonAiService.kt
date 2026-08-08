@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.Process
 import android.view.View
 import android.widget.RemoteViews
@@ -39,13 +40,15 @@ class MonAiService : Service() {
 
     private var serviceJob = SupervisorJob()
     private var scope = CoroutineScope(Dispatchers.IO + serviceJob)
-    private var isRunning = false
+    
+    @Volatile private var isRunning = false
 
     private lateinit var prefsRepo: UserPreferencesRepository
     private var previousUncaughtHandler: Thread.UncaughtExceptionHandler? = null
 
     private var lastFocusInfo = AppFocusInfo("System Active", null, 0L)
     private var dumpsysPollTick = 0
+    private var lastNotifKey: String? = null
 
     private val pkgRegex = Regex("""([a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+)""")
 
@@ -68,8 +71,9 @@ class MonAiService : Service() {
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
 
-        private const val MONITOR_INTERVAL_MS = 3000L
-        private const val DUMPSYS_POLL_EVERY = 3
+        private const val MONITOR_INTERVAL_ON = 12000L
+        private const val MONITOR_INTERVAL_OFF = 60000L // 1 Menit hemat baterai jika layar mati
+        private const val DUMPSYS_POLL_EVERY = 2
 
         @Volatile var currentActiveProfile: OptProfile? = null
 
@@ -82,16 +86,20 @@ class MonAiService : Service() {
 
         @Volatile var aiOptimizerEnabled = false
 
+        val chargingStateLock = Object()
+
         fun restoreChargingFailSafe() {
-            try {
-                if (isChargePausedByLimit || isThermalThrottled) {
-                    ChargingEngine.setChargingEnabled(true)
-                    ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+            synchronized(chargingStateLock) {
+                try {
+                    if (isChargePausedByLimit || isThermalThrottled) {
+                        ChargingEngine.setChargingEnabled(true)
+                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                    }
+                } catch (_: Throwable) {
+                } finally {
+                    isChargePausedByLimit = false
+                    isThermalThrottled = false
                 }
-            } catch (_: Throwable) {
-            } finally {
-                isChargePausedByLimit = false
-                isThermalThrottled = false
             }
         }
     }
@@ -104,7 +112,6 @@ class MonAiService : Service() {
         prefsRepo = UserPreferencesRepository(applicationContext)
         createNotificationChannel()
         
-        // Android 12+ FGS Rule: Selalu panggil startForeground di onCreate()
         startForeground(
             NOTIF_ID,
             buildNotification(AppFocusInfo("Initializing...", null, 0L), "--", "--", 0, BatteryPowerInfo(false, 0, 0, 0.0))
@@ -146,47 +153,49 @@ class MonAiService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Jika scope di-cancel sebelumnya, buat ulang scope baru
         if (!scope.isActive) {
             serviceJob = SupervisorJob()
             scope = CoroutineScope(Dispatchers.IO + serviceJob)
             observePreferences()
         }
 
-        when (intent?.action) {
-            ACTION_START -> {
-                if (!isRunning) {
-                    isRunning = true
-                    scope.launch { prefsRepo.setLiveServiceRunning(true) }
-                    scope.launch { RootEngine.backupOriginalStateIfNeeded() }
-                    startMonitoringLoop()
+        val action = intent?.action
+
+        if (action == null || action == ACTION_START) {
+            if (!isRunning) {
+                isRunning = true
+                scope.launch { prefsRepo.setLiveServiceRunning(true) }
+                scope.launch { RootEngine.backupOriginalStateIfNeeded() }
+                startMonitoringLoop()
+            }
+        } else {
+            when (action) {
+                ACTION_STOP -> {
+                    isRunning = false
+                    restoreChargingFailSafe()
+                    scope.launch { prefsRepo.setLiveServiceRunning(false) }
+                    serviceJob.cancelChildren()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
                 }
-            }
-            ACTION_STOP -> {
-                isRunning = false
-                restoreChargingFailSafe()
-                scope.launch { prefsRepo.setLiveServiceRunning(false) }
-                serviceJob.cancelChildren() // Batalkan anak coroutine saja, jangan matikan scope-nya!
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-            ACTION_SET_PROFILE -> {
-                val profileName = intent.getStringExtra(EXTRA_PROFILE)
-                profileName?.let { name ->
-                    val profile = runCatching { OptProfile.valueOf(name) }.getOrNull()
-                    if (profile != null) {
-                        currentActiveProfile = profile
-                        scope.launch {
-                            prefsRepo.setActiveProfile(profile)
-                            applyProfileFromService(profile)
-                            triggerNotificationRefresh()
+                ACTION_SET_PROFILE -> {
+                    val profileName = intent.getStringExtra(EXTRA_PROFILE)
+                    profileName?.let { name ->
+                        val profile = runCatching { OptProfile.valueOf(name) }.getOrNull()
+                        if (profile != null) {
+                            currentActiveProfile = profile
+                            scope.launch {
+                                prefsRepo.setActiveProfile(profile)
+                                applyProfileFromService(profile)
+                                triggerNotificationRefresh()
+                            }
                         }
                     }
                 }
-            }
-            ACTION_POST_STATUS_LOG -> {
-                val msg = intent.getStringExtra(EXTRA_LOG_MSG)
-                msg?.let { showTemporaryNotifLog(it) }
+                ACTION_POST_STATUS_LOG -> {
+                    val msg = intent.getStringExtra(EXTRA_LOG_MSG)
+                    msg?.let { showTemporaryNotifLog(it) }
+                }
             }
         }
         return START_STICKY
@@ -234,7 +243,7 @@ class MonAiService : Service() {
                 }
             }
 
-            val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
+            val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat, consumerId = "service")
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIF_ID, buildNotification(focusInfo, freq, temp, cpuPct, bat))
         }
@@ -248,16 +257,18 @@ class MonAiService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        restoreChargingFailSafe()
         super.onTaskRemoved(rootIntent)
     }
 
     private fun startMonitoringLoop() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+
         scope.launch {
             val cachedHasRoot = RootEngine.hasRoot()
             val cachedHasShizuku = ShizukuEngine.isRunning() && ShizukuEngine.hasPerm()
 
             while (isActive && isRunning) {
+                val isScreenOn = powerManager.isInteractive
                 val focusInfo = getFocusedAppInfo(this@MonAiService, cachedHasRoot, cachedHasShizuku)
                 
                 var freq = "--"
@@ -284,34 +295,40 @@ class MonAiService : Service() {
                     }
                 }
 
-                val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat)
+                val cpuPct = MonitorEngine.getCpuUsagePercent(rawStat, consumerId = "service")
                 val bat = getBatteryPowerInfo(this@MonAiService)
 
-                if (cachedHasRoot && isChargeLimitEnabled) {
-                    if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
-                        ChargingEngine.setChargingEnabled(false)
-                        isChargePausedByLimit = true
-                    } else if (bat.percentage < (chargeLimitPct - 3) && isChargePausedByLimit) {
-                        ChargingEngine.setChargingEnabled(true)
-                        isChargePausedByLimit = false
+                synchronized(chargingStateLock) {
+                    if (cachedHasRoot && isChargeLimitEnabled) {
+                        if (bat.isCharging && bat.percentage >= chargeLimitPct && !isChargePausedByLimit) {
+                            val r = ChargingEngine.setChargingEnabled(false)
+                            if (r.success) isChargePausedByLimit = true
+                        } else if (bat.percentage < (chargeLimitPct - 3) && isChargePausedByLimit) {
+                            val r = ChargingEngine.setChargingEnabled(true)
+                            if (r.success) isChargePausedByLimit = false
+                        }
+                    }
+
+                    if (cachedHasRoot && isThermalProtectEnabled && bat.isCharging) {
+                        if (bat.tempC > 42.0 && !isThermalThrottled) {
+                            val r = ChargingEngine.setChargeCurrentMaxMa(500)
+                            if (r.success) isThermalThrottled = true
+                        } else if (bat.tempC < 38.0 && isThermalThrottled) {
+                            val r = ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
+                            if (r.success) isThermalThrottled = false
+                        }
                     }
                 }
 
-                if (cachedHasRoot && isThermalProtectEnabled && bat.isCharging) {
-                    if (bat.tempC > 42.0 && !isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(500)
-                        isThermalThrottled = true
-                    } else if (bat.tempC < 38.0 && isThermalThrottled) {
-                        ChargingEngine.setChargeCurrentMaxMa(chargeSpeedMa)
-                        isThermalThrottled = false
-                    }
+                val notifKey = "$focusInfo|$freq|$temp|$cpuPct|${bat.isCharging}|${bat.currentMa}|${bat.percentage}|${bat.tempC}|$isChargePausedByLimit|$isThermalThrottled|$currentActiveProfile"
+                if (notifKey != lastNotifKey) {
+                    lastNotifKey = notifKey
+                    val notif = buildNotification(focusInfo, freq, temp, cpuPct, bat)
+                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    manager.notify(NOTIF_ID, notif)
                 }
 
-                val notif = buildNotification(focusInfo, freq, temp, cpuPct, bat)
-                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                manager.notify(NOTIF_ID, notif)
-
-                delay(MONITOR_INTERVAL_MS)
+                delay(if (isScreenOn) MONITOR_INTERVAL_ON else MONITOR_INTERVAL_OFF)
             }
         }
     }

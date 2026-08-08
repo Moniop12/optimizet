@@ -28,21 +28,25 @@ object ChargingEngine {
         "/sys/class/power_supply/battery/direct_charging_enable"
     )
 
+    // FIX (K4): chmod 666 dihapus. Proses yang menjalankan blok ini sudah UID root
+    // (dieksekusi via `su`), jadi root selalu punya izin tulis ke node sysfs tanpa
+    // perlu membuka izin 666 (yang membuka celah tulis untuk SEMUA app lain di device).
+
     fun setChargingEnabled(enable: Boolean): CmdResult {
         val valEnable = if (enable) "1" else "0"
         val valSuspend = if (enable) "0" else "1"
 
         val cmds = mutableListOf<String>()
         for (node in ENABLE_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo $valEnable > $node && echo OK")
+            cmds.add("[ -f $node ] && echo $valEnable > $node && echo OK")
         }
         for (node in SUSPEND_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo $valSuspend > $node && echo OK")
+            cmds.add("[ -f $node ] && echo $valSuspend > $node && echo OK")
         }
 
         val fullCmd = cmds.joinToString("; ")
         val res = RootEngine.su(fullCmd)
-        
+
         // Verifikasi apakah ada node yang berhasil diubah
         val writtenCount = res.output.lines().count { it.trim() == "OK" }
         return if (writtenCount > 0) {
@@ -52,42 +56,53 @@ object ChargingEngine {
         }
     }
 
+    // FIX (K1): Dulu kode MENULIS DULU ke semua node fallback (charging_enabled=0,
+    // input_suspend=1), BARU mengecek apakah node bypass ada. Di perangkat tanpa node
+    // bypass, tulisan itu tetap mematikan sakelar charging walau UI akhirnya bilang
+    // "Kernel does not support Bypass Charging" — charging bisa mati permanen.
+    // Sekarang: cek dulu node bypass ADA, baru tulis apapun.
     fun setBypassCharging(enable: Boolean): CmdResult {
+        val checkNode = RootEngine.su(
+            "ls " + BYPASS_NODES.joinToString(" ") + " 2>/dev/null | head -n 1"
+        )
+        if (checkNode.output.isBlank()) {
+            return CmdResult(false, "Kernel tidak mendukung Bypass Charging (Node tidak ditemukan)", "bypass_check")
+        }
+
         val valCharging = if (enable) "0" else "1"
         val valSuspend = if (enable) "1" else "0"
 
         val cmds = mutableListOf<String>()
         for (node in BYPASS_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo ${if (enable) "1" else "0"} > $node")
+            cmds.add("[ -f $node ] && echo ${if (enable) "1" else "0"} > $node && echo OK")
         }
         for (node in ENABLE_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo $valCharging > $node")
+            cmds.add("[ -f $node ] && echo $valCharging > $node && echo OK")
         }
         for (node in SUSPEND_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo $valSuspend > $node")
+            cmds.add("[ -f $node ] && echo $valSuspend > $node && echo OK")
         }
 
-        val fullCmd = cmds.joinToString("; ") + "; echo done"
+        val fullCmd = cmds.joinToString("; ")
         val res = RootEngine.su(fullCmd)
-
-        val checkNode = RootEngine.su("ls /sys/class/power_supply/battery/bypass_charging_enable /sys/class/oplus_chg/battery/mmi_charging_enable /sys/class/qcom-battery/batt_charging_enable /sys/class/power_supply/battery/direct_charging_enable 2>/dev/null | head -n 1")
-        if (checkNode.output.isBlank()) {
-            return CmdResult(false, "Kernel tidak mendukung Bypass Charging (Node tidak ditemukan)", "bypass_check")
+        val writtenCount = res.output.lines().count { it.trim() == "OK" }
+        return if (writtenCount > 0) {
+            CmdResult(true, res.output, fullCmd)
+        } else {
+            CmdResult(false, "Gagal menulis node bypass charging", fullCmd)
         }
-
-        return res
     }
 
     fun setChargeCurrentMaxMa(mA: Int): CmdResult {
         val uA = mA * 1000
         val cmds = mutableListOf<String>()
         for (node in CURRENT_NODES) {
-            cmds.add("[ -f $node ] && chmod 666 $node 2>/dev/null && echo $uA > $node && echo OK")
+            cmds.add("[ -f $node ] && echo $uA > $node && echo OK")
         }
 
         val fullCmd = cmds.joinToString("; ")
         val res = RootEngine.su(fullCmd)
-        
+
         val writtenCount = res.output.lines().count { it.trim() == "OK" }
         return if (writtenCount > 0) {
             CmdResult(true, res.output, fullCmd)

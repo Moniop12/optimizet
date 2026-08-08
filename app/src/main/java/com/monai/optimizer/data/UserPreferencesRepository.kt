@@ -26,6 +26,10 @@ data class UserPreferencesState(
     val showNotifPower: Boolean,
     val showNotifProfiles: Boolean,
     val resolutionPreset: String,
+    val privateDnsPreset: String,
+    val tcpCongestionPreset: String,
+    val ioReadAheadPreset: String,
+    val artCompiledAppsRaw: String,
 )
 
 class UserPreferencesRepository(context: Context) {
@@ -46,6 +50,10 @@ class UserPreferencesRepository(context: Context) {
         val SHOW_NOTIF_POWER = booleanPreferencesKey("show_notif_power")
         val SHOW_NOTIF_PROFILES = booleanPreferencesKey("show_notif_profiles")
         val RESOLUTION_PRESET = stringPreferencesKey("resolution_preset")
+        val PRIVATE_DNS_PRESET = stringPreferencesKey("private_dns_preset")
+        val TCP_CONGESTION_PRESET = stringPreferencesKey("tcp_congestion_preset")
+        val IO_READAHEAD_PRESET = stringPreferencesKey("io_readahead_preset")
+        val ART_COMPILED_APPS_RAW = stringPreferencesKey("art_compiled_apps_raw")
     }
 
     companion object {
@@ -72,6 +80,10 @@ class UserPreferencesRepository(context: Context) {
             showNotifPower = prefs[Keys.SHOW_NOTIF_POWER] ?: true,
             showNotifProfiles = prefs[Keys.SHOW_NOTIF_PROFILES] ?: true,
             resolutionPreset = prefs[Keys.RESOLUTION_PRESET] ?: "NATIVE",
+            privateDnsPreset = prefs[Keys.PRIVATE_DNS_PRESET] ?: "OFF",
+            tcpCongestionPreset = prefs[Keys.TCP_CONGESTION_PRESET] ?: "DEFAULT",
+            ioReadAheadPreset = prefs[Keys.IO_READAHEAD_PRESET] ?: "DEFAULT",
+            artCompiledAppsRaw = prefs[Keys.ART_COMPILED_APPS_RAW] ?: "",
         )
     }
 
@@ -129,5 +141,80 @@ class UserPreferencesRepository(context: Context) {
 
     suspend fun setResolutionPreset(preset: String) {
         store.edit { prefs -> prefs[Keys.RESOLUTION_PRESET] = preset }
+    }
+
+    suspend fun setPrivateDnsPreset(preset: String) {
+        store.edit { prefs -> prefs[Keys.PRIVATE_DNS_PRESET] = preset }
+    }
+
+    suspend fun setTcpCongestionPreset(preset: String) {
+        store.edit { prefs -> prefs[Keys.TCP_CONGESTION_PRESET] = preset }
+    }
+
+    suspend fun setIoReadAheadPreset(preset: String) {
+        store.edit { prefs -> prefs[Keys.IO_READAHEAD_PRESET] = preset }
+    }
+
+    suspend fun saveArtCompiledApp(pkg: String, mode: String) {
+        store.edit { prefs ->
+            val currentRaw = prefs[Keys.ART_COMPILED_APPS_RAW] ?: ""
+            val map = parseArtMap(currentRaw).toMutableMap()
+            map[pkg] = mode
+            prefs[Keys.ART_COMPILED_APPS_RAW] = serializeArtMap(map)
+        }
+    }
+
+    suspend fun removeArtCompiledApp(pkg: String) {
+        store.edit { prefs ->
+            val currentRaw = prefs[Keys.ART_COMPILED_APPS_RAW] ?: ""
+            val map = parseArtMap(currentRaw).toMutableMap()
+            map.remove(pkg)
+            prefs[Keys.ART_COMPILED_APPS_RAW] = serializeArtMap(map)
+        }
+    }
+
+    suspend fun clearArtCompiledApps() {
+        store.edit { prefs -> prefs.remove(Keys.ART_COMPILED_APPS_RAW) }
+    }
+
+    suspend fun clearAllPreferences() {
+        store.edit { prefs -> prefs.clear() }
+    }
+
+    // FIX (minor #15): "Reset to Stock Defaults" dulu memanggil clearAllPreferences()
+    // yang menghapus SEMUA preferensi, termasuk pilihan tampilan notifikasi milik user
+    // (showNotifRam/Cpu/Power/Profiles) yang sama sekali tidak berhubungan dengan
+    // konfigurasi sistem/kernel. Fungsi ini hanya menghapus preferensi yang memang
+    // merepresentasikan konfigurasi sistem yang di-reset oleh tombol tersebut.
+    suspend fun clearSystemPreferences() {
+        store.edit { prefs ->
+            prefs.remove(Keys.ACTIVE_PROFILE)
+            prefs.remove(Keys.CHARGE_LIMIT_ENABLED)
+            prefs.remove(Keys.CHARGE_LIMIT_PCT)
+            prefs.remove(Keys.CHARGE_SPEED_MA)
+            prefs.remove(Keys.THERMAL_PROTECT_ENABLED)
+            prefs.remove(Keys.BYPASS_CHARGING_ENABLED)
+            prefs.remove(Keys.AI_OPTIMIZER_ENABLED)
+            prefs.remove(Keys.RESOLUTION_PRESET)
+            prefs.remove(Keys.PRIVATE_DNS_PRESET)
+            prefs.remove(Keys.TCP_CONGESTION_PRESET)
+            prefs.remove(Keys.IO_READAHEAD_PRESET)
+            prefs.remove(Keys.ART_COMPILED_APPS_RAW)
+            // showNotif*, isLiveServiceRunning sengaja TIDAK dihapus — itu preferensi
+            // tampilan/pilihan user, bukan konfigurasi sistem yang perlu di-reset.
+        }
+    }
+
+    private fun parseArtMap(raw: String): Map<String, String> {
+        if (raw.isBlank()) return emptyMap()
+        return raw.split(",")
+            .mapNotNull { entry ->
+                val parts = entry.split(":")
+                if (parts.size == 2) parts[0] to parts[1] else null
+            }.toMap()
+    }
+
+    private fun serializeArtMap(map: Map<String, String>): String {
+        return map.entries.joinToString(",") { "${it.key}:${it.value}" }
     }
 }

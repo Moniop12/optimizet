@@ -6,30 +6,20 @@ class ShellUserService : IShellUserService.Stub() {
 
     override fun exec(cmd: String): String {
         return try {
-            val process = ProcessBuilder("sh", "-c", cmd)
-                .redirectErrorStream(true)
-                .start()
-
+            val process = ProcessBuilder("sh", "-c", cmd).redirectErrorStream(true).start()
             var output = ""
-            var code = -1
+            val reader = Thread { output = process.inputStream.bufferedReader().readText() }
+            reader.start()
 
-            val worker = Thread {
-                try {
-                    output = process.inputStream.bufferedReader().readText()
-                    code = process.waitFor()
-                } catch (_: Throwable) {}
-            }
-            worker.isDaemon = true
-            worker.start()
-
-            // Timeout 5 detik agar Shizuku tidak hang selamanya
-            worker.join(5000)
-            if (process.isAlive) {
+            // Timeout 120 detik agar proses kompilasi ART tidak terputus di tengah jalan
+            if (process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
+                reader.join()
+                "${process.exitValue()}\u0001${output.trim()}"
+            } else {
                 process.destroyForcibly()
-                return "-1\u0001Command execution timed out (5s)"
+                reader.interrupt()
+                "-1\u0001Command execution timed out (120s)"
             }
-
-            "$code\u0001${output.trim()}"
         } catch (e: Throwable) {
             "-1\u0001${e.message ?: "exec failed"}"
         }

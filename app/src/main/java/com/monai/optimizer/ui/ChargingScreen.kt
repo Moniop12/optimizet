@@ -59,7 +59,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
             AppCard {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
 
-                    // ── FITUR BARU: Bypass Charging (Pass-Through Power) ──
+                    // ── Bypass Charging ──
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -68,7 +68,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         IconBadge(Icons.Filled.Power, PurpleGlow, size = 34.dp, iconSize = 16.dp, active = vm.isBypassChargingEnabled)
                         Column(Modifier.weight(1f)) {
                             Text("Bypass Charging (Direct Power)", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Suplay daya langsung tanpa mengisi baterai (HP Dingin)", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text("Supply power directly to motherboard without charging battery (Cool Device)", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(
                             checked = vm.isBypassChargingEnabled,
@@ -79,7 +79,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
 
                     HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
-                    // ── Charge Limit ──────────────────────────────
+                    // ── Charge Limit ──
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -88,7 +88,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         IconBadge(Icons.Filled.BatteryChargingFull, EmeraldGlow, size = 34.dp, iconSize = 16.dp, active = vm.isChargeLimitEnabled)
                         Column(Modifier.weight(1f)) {
                             Text("Charge Limit", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Stop otomatis di level tertentu", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text("Automatically stop charging at set percentage limit", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(
                             checked = vm.isChargeLimitEnabled,
@@ -115,7 +115,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
 
                     HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
-                    // ── Thermal Protection ────────────────────────
+                    // ── Thermal Protection ──
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -124,7 +124,7 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
                         IconBadge(Icons.Filled.Thermostat, OrangeGlow, size = 34.dp, iconSize = 16.dp, active = vm.isThermalProtectEnabled)
                         Column(Modifier.weight(1f)) {
                             Text("Thermal Protection", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Throttle 500mA di atas 42°C", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text("Throttle charging current to 500mA above 42°C", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(
                             checked = vm.isThermalProtectEnabled,
@@ -135,18 +135,18 @@ fun ChargingScreen(vm: MainViewModel, onBack: () -> Unit) {
 
                     HorizontalDivider(color = HairlineBorder, thickness = 0.8.dp)
 
-                    // ── Charging Speed ─────────────────────────────
+                    // ── Charging Speed ──
                     Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconBadge(Icons.Filled.Bolt, EmeraldGlow, size = 34.dp, iconSize = 16.dp, active = true)
                             Column {
                                 Text("Charging Speed", color = TextPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("Batas arus (mA) saat mengisi daya", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                                Text("Maximum charging current limit in mA", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
                             }
                         }
 
                         if (!vm.hasRoot) {
-                            Text("Requires root access", color = StatusError, fontSize = 11.sp)
+                            Text("Requires Root access", color = StatusError, fontSize = 11.sp)
                         } else {
                             var sliderPos by remember(vm.chargeSpeedMa) { mutableFloatStateOf(vm.chargeSpeedMa.toFloat()) }
 

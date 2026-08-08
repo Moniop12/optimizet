@@ -41,44 +41,40 @@ object RootEngine {
         if (appContext == null) appContext = context.applicationContext
     }
 
-    // ── ROOT CHECK DENGAN TIMEOUT (Anti Hang Magisk/KernelSU) ──────────
+    // ── ROOT CHECK DENGAN TIMEOUT (Bebas Memory Leak) ──────────
     fun hasRoot(): Boolean = try {
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", "echo ok"))
-        
-        // Thread terpisah untuk kill proses jika timeout 3 detik
-        val worker = Thread {
-            try {
-                Thread.sleep(3000)
-                if (p.isAlive) p.destroyForcibly()
-            } catch (_: Exception) {}
+        val p = ProcessBuilder("su", "-c", "echo ok").redirectErrorStream(true).start()
+        var output = ""
+        val reader = Thread { output = p.inputStream.bufferedReader().readText().trim() }
+        reader.start()
+
+        if (p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) {
+            reader.join()
+            output == "ok" && p.exitValue() == 0
+        } else {
+            p.destroyForcibly()
+            reader.interrupt()
+            false
         }
-        worker.isDaemon = true
-        worker.start()
-        
-        val out = p.inputStream.bufferedReader().readText().trim()
-        val rc = p.waitFor()
-        out == "ok" && rc == 0
     } catch (_: Exception) { false }
 
-    // ── EXEC SU DENGAN TIMEOUT ─────────────────────────────────────────
+    // ── EXEC SU DENGAN TIMEOUT (Bebas Memory Leak) ──────────────────────────────────
     fun su(cmd: String): CmdResult = try {
-        val p = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-        
-        // Thread terpisah untuk kill proses jika timeout 5 detik
-        val worker = Thread {
-            try {
-                Thread.sleep(5000)
-                if (p.isAlive) p.destroyForcibly()
-            } catch (_: Exception) {}
-        }
-        worker.isDaemon = true
-        worker.start()
+        val p = ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start()
+        var output = ""
+        val reader = Thread { output = p.inputStream.bufferedReader().readText().trim() }
+        reader.start()
 
-        val out = p.inputStream.bufferedReader().readText().trim()
-        val err = p.errorStream.bufferedReader().readText().trim()
-        val rc = p.waitFor()
-        Log.d(T, "[$rc] $cmd")
-        CmdResult(rc == 0, out.ifEmpty { err }, cmd)
+        if (p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) {
+            reader.join()
+            val rc = p.exitValue()
+            Log.d(T, "[$rc] $cmd")
+            CmdResult(rc == 0, output, cmd)
+        } else {
+            p.destroyForcibly()
+            reader.interrupt()
+            CmdResult(false, "Timeout", cmd)
+        }
     } catch (e: Exception) { CmdResult(false, e.message ?: "error", cmd) }
 
     fun getGovernors(): List<String> {
@@ -94,8 +90,7 @@ object RootEngine {
         if (available.isNotEmpty() && !available.contains(gov)) {
             return CmdResult(false, "Governor $gov is not supported by kernel", "setGov $gov")
         }
-        val cmd = "chmod 666 /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null; " +
-                "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
+        val cmd = "for g in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo $gov > \$g; done"
         return su(cmd)
     }
 
@@ -230,7 +225,6 @@ object RootEngine {
         val dirtyBgRatio = snap?.dirtyBackgroundRatio ?: "10"
         val vfsCachePressure = snap?.vfsCachePressure ?: "100"
 
-        // Baca anim scale dari backup, fallback ke 1.0
         val prefs = ctx.kernelBackupStore.data.first()
         val animScale = prefs[BackupKeys.ANIM_SCALE] ?: "1.0"
         val transScale = prefs[BackupKeys.TRANSITION_SCALE] ?: "1.0"
@@ -252,9 +246,7 @@ object RootEngine {
         )
     }
 
-    // BATCH READ: Menggabungkan beberapa bacaan jadi 1 eksekusi su (Hemat Baterai)
     fun getSystemStatsBatch(): String {
-        // Format: stat|||freq|||temp|||gov
         val cmd = "cat /proc/stat 2>/dev/null | head -n 1; echo '|||'; " +
                 "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null; echo '|||'; " +
                 "cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -n 1; echo '|||'; " +
