@@ -72,6 +72,7 @@ class MonAiService : Service() {
         const val ACTION_POST_STATUS_LOG = "ACTION_POST_STATUS_LOG"
         const val EXTRA_PROFILE = "EXTRA_PROFILE"
         const val EXTRA_LOG_MSG = "EXTRA_LOG_MSG"
+        const val ACTION_TOGGLE_OVERLAY = "ACTION_TOGGLE_OVERLAY"
 
         private const val MONITOR_INTERVAL_ON = 12000L
         private const val MONITOR_INTERVAL_OFF = 60000L // Hemat baterai saat layar mati
@@ -277,6 +278,12 @@ class MonAiService : Service() {
         restoreChargingFailSafe()
         isRunning = false
         serviceJob.cancel()
+        // V4: pastikan overlay floating ikut hilang saat service mati
+        runCatching {
+            startService(Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_HIDE
+            })
+        }
         val prev = previousUncaughtHandler
         if (prev != null) {
             Thread.setDefaultUncaughtExceptionHandler(prev)
@@ -539,9 +546,11 @@ class MonAiService : Service() {
         bat: BatteryPowerInfo
     ): Notification {
         val appNameStr = getString(R.string.app_name)
-        val openAppIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        // V4: klik notifikasi → buka floating overlay (bukan Activity)
+        val openOverlayIntent = PendingIntent.getService(
+            this, 0, Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_SHOW
+            }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val perfIntent = PendingIntent.getService(
@@ -591,46 +600,34 @@ class MonAiService : Service() {
         val isBal = currentActiveProfile == OptProfile.BALANCED
         val isSave = currentActiveProfile == OptProfile.BATTERY
 
-        val labelPerf = if (isPerf) "✓ PERF" else "PERF"
-        val labelBal = if (isBal) "✓ BALANCED" else "BALANCED"
-        val labelSave = if (isSave) "✓ SAVER" else "SAVER"
+        val labelPerf = if (isPerf) "\u2713 PERF" else "PERF"
+        val labelBal = if (isBal) "\u2713 BALANCED" else "BALANCED"
+        val labelSave = if (isSave) "\u2713 SAVER" else "SAVER"
 
         val perfColor = ContextCompat.getColor(this, R.color.notif_perf_color)
         val balColor = ContextCompat.getColor(this, R.color.notif_bal_color)
         val saveColor = ContextCompat.getColor(this, R.color.notif_save_color)
         val whiteColor = ContextCompat.getColor(this, R.color.notif_btn_active_text)
 
+        // V4: collapsed = 1 baris minimalis (baterai + suhu + badge mode)
         val viewsCollapsed = RemoteViews(packageName, R.layout.notif_monai_collapsed).apply {
-            setTextViewText(R.id.txt_app_title, displayTitle)
-            setTextViewText(R.id.txt_mode_badge, profileLabel)
-
-            setViewVisibility(R.id.txt_col_ram, if (showNotifRam) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.txt_col_cpu, if (showNotifCpu) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.txt_col_power, if (showNotifPower) View.VISIBLE else View.GONE)
-
-            if (showNotifRam) setTextViewText(R.id.txt_col_ram, "RAM: $ramAppStr")
-            if (showNotifCpu) setTextViewText(R.id.txt_col_cpu, "CPU: $cpuUsagePct% • $cpuFreq")
-            if (showNotifPower) {
-                val currentDisplay = if (bat.currentMa == 0) "0 mA" else "${if (bat.isCharging) "+" else "-"}${abs(bat.currentMa)} mA"
-                setTextViewText(R.id.txt_col_power, currentDisplay)
-                setTextColor(R.id.txt_col_power, powerColor)
-            }
+            setTextViewText(R.id.txt_notif_battery, "${bat.percentage}%")
+            setTextColor(R.id.txt_notif_battery, powerColor)
+            setTextViewText(R.id.txt_notif_temp, "${formattedTemp}\u00b0C")
+            setTextViewText(R.id.txt_notif_status, profileLabel)
         }
 
+        // V4: expanded = ringkas & modern (bar baterai + 3 chip statistik)
         val viewsExpanded = RemoteViews(packageName, R.layout.notif_monai_expanded).apply {
-            setTextViewText(R.id.txt_exp_app_title, displayTitle)
-            setTextViewText(R.id.txt_exp_mode_badge, "MODE: $profileLabel")
+            setTextViewText(R.id.txt_exp_battery_pct, "${bat.percentage}%")
+            setTextColor(R.id.txt_exp_battery_pct, powerColor)
+            setTextViewText(R.id.txt_exp_temp_val, "${formattedTemp}\u00b0C")
+            setTextViewText(R.id.txt_exp_mode_badge, profileLabel)
 
-            setViewVisibility(R.id.chip_ram, if (showNotifRam) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.chip_cpu, if (showNotifCpu) View.VISIBLE else View.GONE)
-            setViewVisibility(R.id.chip_power, if (showNotifPower) View.VISIBLE else View.GONE)
-
-            if (showNotifRam) setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
-            if (showNotifCpu) setTextViewText(R.id.txt_exp_cpu_val, "$cpuUsagePct% • $cpuFreq ($cpuTemp)")
-            if (showNotifPower) {
-                setTextViewText(R.id.txt_exp_power_val, "$powerText • ${bat.percentage}% (${formattedTemp}°C)")
-                setTextColor(R.id.txt_exp_power_val, powerColor)
-            }
+            setTextViewText(R.id.txt_exp_power_val, powerText)
+            setTextColor(R.id.txt_exp_power_val, powerColor)
+            setTextViewText(R.id.txt_exp_cpu_val, "$cpuUsagePct% \u00b7 $cpuFreq")
+            setTextViewText(R.id.txt_exp_ram_val, ramAppStr)
             setProgressBar(R.id.progress_battery, 100, bat.percentage, false)
         }
 
@@ -641,14 +638,14 @@ class MonAiService : Service() {
             .setCustomContentView(viewsCollapsed)
             .setCustomBigContentView(viewsExpanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setContentIntent(openAppIntent)
+            .setContentIntent(openOverlayIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentTitle(displayTitle)
-            .setContentText("$profileLabel · RAM: $ramAppStr · CPU: $cpuUsagePct% · $powerText")
+            .setContentTitle(appNameStr)
+            .setContentText("${bat.percentage}% \u00b7 ${formattedTemp}\u00b0C \u00b7 $profileLabel")
             .apply {
                 if (showNotifProfiles) {
                     addAction(R.drawable.ic_notification, labelPerf, perfIntent)

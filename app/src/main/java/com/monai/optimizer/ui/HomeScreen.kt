@@ -2,7 +2,9 @@ package com.monai.optimizer.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +58,22 @@ fun HomeScreen(vm: MainViewModel, onOpenAbout: () -> Unit) {
         }
     )
 
+    // V4: tombol info di header juga jadi pintu izin overlay (bukan tombol baru)
+    fun handleInfoClick() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
+            Toast.makeText(ctx, "Grant overlay permission to open the floating panel", Toast.LENGTH_SHORT).show()
+            runCatching {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${ctx.packageName}")
+                )
+                ctx.startActivity(intent)
+            }
+        } else {
+            onOpenAbout()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,8 +109,8 @@ fun HomeScreen(vm: MainViewModel, onOpenAbout: () -> Unit) {
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onOpenAbout) {
-                    Icon(Icons.Outlined.Info, "About", tint = TextTertiary)
+                IconButton(onClick = { handleInfoClick() }) {
+                    Icon(Icons.Outlined.Info, "About & Overlay", tint = TextTertiary)
                 }
 
                 IconButton(onClick = {

@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- V4: Floating overlay UI (System Alert Window) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions"/>
 
@@ -45,6 +47,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="System Optimization Engine &amp; Battery Safety Monitor"/>
         </service>
+
+        <!-- V4: Floating overlay (buka dari notifikasi 1-baris) -->
+        <service
+            android:name=".service.OverlayService"
+            android:enabled="true"
+            android:exported="false"/>
 
         <!-- Wajib exported="true" agar OS Android bisa mengirim sinyal Reboot BOOT_COMPLETED -->
         <receiver

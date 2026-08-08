@@ -1,85 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Rombak total v3: layout collapsed bersih & modern, padding nyaman,
-     tipografi konsisten dengan tema V2 Pastel Blue. ID dipertahankan agar
-     kode MonAiService tetap valid. -->
+<!-- V4: Notifikasi 1 baris minimalis — isi: baterai + suhu + badge mode.
+     Tidak makan tempat di shade notifikasi. Ketuk notifikasi = buka
+     floating overlay (bukan Activity). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingStart="4dp"
-    android:paddingEnd="4dp"
-    android:paddingTop="2dp"
-    android:paddingBottom="2dp">
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp"
+    android:paddingTop="1dp"
+    android:paddingBottom="1dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/txt_notif_battery"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-        <TextView
-            android:id="@+id/txt_app_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="MonProject • Focus App"
-            android:textColor="@color/notif_title_color"
-            android:textStyle="bold"
-            android:textSize="13sp"
-            android:singleLine="true"
-            android:ellipsize="end"/>
-        <TextView
-            android:id="@+id/txt_mode_badge"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:paddingStart="9dp"
-            android:paddingEnd="9dp"
-            android:paddingTop="3dp"
-            android:paddingBottom="3dp"
-            android:background="@drawable/notif_badge_bg"
-            android:text="AUTO"
-            android:textColor="@color/notif_accent"
-            android:textStyle="bold"
-            android:textSize="10sp"/>
-    </LinearLayout>
+        android:text="78%"
+        android:textColor="@color/notif_power_discharge"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:singleLine="true"/>
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="5dp">
-        <TextView
-            android:id="@+id/txt_col_ram"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="RAM: 127 MB"
-            android:textColor="@color/notif_ram_color"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:singleLine="true"
-            android:ellipsize="end"/>
-        <TextView
-            android:id="@+id/txt_col_cpu"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.2"
-            android:text="CPU: 633 MHz"
-            android:textColor="@color/notif_cpu_color"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:singleLine="true"
-            android:ellipsize="end"/>
-        <TextView
-            android:id="@+id/txt_col_power"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="-714 mA"
-            android:textColor="@color/notif_power_discharge"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:singleLine="true"
-            android:ellipsize="end"/>
-    </LinearLayout>
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
+        android:text="·"
+        android:textColor="@color/notif_sub_color"
+        android:textSize="12sp"
+        android:singleLine="true"/>
+
+    <TextView
+        android:id="@+id/txt_notif_temp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="36.5°C"
+        android:textColor="@color/notif_title_color"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:singleLine="true"/>
+
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <TextView
+        android:id="@+id/txt_notif_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:paddingStart="9dp"
+        android:paddingEnd="9dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:background="@drawable/notif_badge_bg"
+        android:text="BALANCED"
+        android:textColor="@color/notif_accent"
+        android:textStyle="bold"
+        android:textSize="9sp"
+        android:singleLine="true"/>
 </LinearLayout>
