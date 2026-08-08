@@ -69,12 +69,15 @@ class OverlayService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var refreshRunnable: Runnable? = null
 
-    private val batteryTxt = TextView(this)
-    private val tempTxt = TextView(this)
-    private val powerTxt = TextView(this)
-    private val ramTxt = TextView(this)
-    private val cpuTxt = TextView(this)
-    private val batteryBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+    // View fields — dibuat di onCreate() (context sudah valid). DILARANG inisialisasi
+    // di field initializer: Service belum di-attach saat itu, `this` masih null
+    // context → NPE getResources() (crash OverlayService.<init>).
+    private lateinit var batteryTxt: TextView
+    private lateinit var tempTxt: TextView
+    private lateinit var powerTxt: TextView
+    private lateinit var ramTxt: TextView
+    private lateinit var cpuTxt: TextView
+    private lateinit var batteryBar: ProgressBar
 
     private var isDragging = false
     private var initialTouchX = 0f
@@ -83,6 +86,22 @@ class OverlayService : Service() {
     private var initialY = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        initViews()
+    }
+
+    /** Buat semua View di sini — `this` sudah valid sebagai Context setelah
+     *  Service di-attach ke system (dipanggil dari onCreate). */
+    private fun initViews() {
+        batteryTxt = TextView(this)
+        tempTxt = TextView(this)
+        powerTxt = TextView(this)
+        ramTxt = TextView(this)
+        cpuTxt = TextView(this)
+        batteryBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
