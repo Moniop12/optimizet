@@ -60,12 +60,13 @@ fun MainApp(vm: MainViewModel) {
 
     val isSubScreenActive = showCharging || showFreezer || showPerfHub || showNetHub || showMaintHub || showAppHub
 
-    BackHandler(enabled = showCharging) { showCharging = false }
-    BackHandler(enabled = showFreezer && !showCharging) { showFreezer = false }
-    BackHandler(enabled = showAppHub && !showFreezer && !showCharging) { showAppHub = false }
-    BackHandler(enabled = showPerfHub && !showAppHub && !showFreezer && !showCharging) { showPerfHub = false }
-    BackHandler(enabled = showNetHub && !showPerfHub && !showAppHub && !showFreezer && !showCharging) { showNetHub = false }
-    BackHandler(enabled = showMaintHub && !showNetHub && !showPerfHub && !showAppHub && !showFreezer && !showCharging) { showMaintHub = false }
+    // Logika Back Button yang benar (Freezer diutamakan karena dia sub-menu dari AppHub)
+    BackHandler(enabled = showFreezer) { showFreezer = false }
+    BackHandler(enabled = showCharging && !showFreezer) { showCharging = false }
+    BackHandler(enabled = showAppHub && !showFreezer) { showAppHub = false }
+    BackHandler(enabled = showPerfHub && !showFreezer) { showPerfHub = false }
+    BackHandler(enabled = showNetHub && !showFreezer) { showNetHub = false }
+    BackHandler(enabled = showMaintHub && !showFreezer) { showMaintHub = false }
 
     Scaffold(
         containerColor = DarkBg,
@@ -119,20 +120,13 @@ fun MainApp(vm: MainViewModel) {
                 }
             }
 
+            // 1. KELOMPOK HUB (Level 1)
             AnimatedVisibility(
                 visible = showCharging,
                 enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
                 exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
             ) {
                 ChargingScreen(vm, onBack = { showCharging = false })
-            }
-
-            AnimatedVisibility(
-                visible = showFreezer,
-                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
-                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
-            ) {
-                FreezerScreen(vm, onBack = { showFreezer = false })
             }
 
             AnimatedVisibility(
@@ -165,6 +159,15 @@ fun MainApp(vm: MainViewModel) {
                 exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
             ) {
                 MaintenanceHubScreen(vm, onBack = { showMaintHub = false })
+            }
+
+            // 2. KELOMPOK SUB-HUB (Level 2) - HARUS DI PALING BAWAH AGAR TIDAK TERTUTUP HUB LAIN
+            AnimatedVisibility(
+                visible = showFreezer,
+                enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+                exit = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(220)) + fadeOut(tween(220))
+            ) {
+                FreezerScreen(vm, onBack = { showFreezer = false })
             }
         }
     }

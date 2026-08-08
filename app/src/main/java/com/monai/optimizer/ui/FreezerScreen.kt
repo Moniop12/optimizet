@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +52,9 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
 
     var query  by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(FreezerFilter.ALL) }
+    
+    // State untuk Dialog Konfirmasi Debloat
+    var appToDebloat by remember { mutableStateOf<FrozenAppItem?>(null) }
 
     LaunchedEffect(Unit) {
         if (vm.freezerApps.isEmpty()) vm.loadFreezerApps(ctx)
@@ -91,7 +95,7 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    "App Freezer",
+                    "App Freezer & Debloater",
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -209,11 +213,11 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 ) {
                     items(filtered, key = { it.pkg }) { app ->
                         FreezerAppItem(
-                            vm = vm,
                             item = app,
                             canAct = (vm.hasShizuku || vm.hasRoot) && !app.isCritical,
                             isLoading = vm.freezerActionPkg == app.pkg,
-                            onToggle = { vm.toggleFreezeApp(ctx, app) }
+                            onToggle = { vm.toggleFreezeApp(ctx, app) },
+                            onRequestDebloat = { appToDebloat = app }
                         )
                     }
                     item { Spacer(Modifier.height(16.dp)) }
@@ -221,15 +225,45 @@ fun FreezerScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
         }
     }
+
+    // Dialog Konfirmasi Debloat
+    if (appToDebloat != null) {
+        AlertDialog(
+            onDismissRequest = { appToDebloat = null },
+            title = { Text("Debloat System App?", fontWeight = FontWeight.Bold) },
+            text = { 
+                Text("Are you sure you want to uninstall '${appToDebloat!!.name}'?\n\nThis will remove the app for the current user. Warning: Removing critical OEM apps might cause system instability. Proceed with caution.") 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.debloatSystemApp(ctx, appToDebloat!!)
+                        appToDebloat = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedErr)
+                ) {
+                    Text("Uninstall", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { appToDebloat = null }) {
+                    Text("Cancel", color = TextPrimary)
+                }
+            },
+            containerColor = AppSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary
+        )
+    }
 }
 
 @Composable
 private fun FreezerAppItem(
-    vm: MainViewModel,
     item: FrozenAppItem,
     canAct: Boolean,
     isLoading: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onRequestDebloat: () -> Unit
 ) {
     val ctx = LocalContext.current
     var iconBitmap by remember(item.pkg) { mutableStateOf(iconCache.get(item.pkg)) }
@@ -360,9 +394,10 @@ private fun FreezerAppItem(
                     }
                 }
 
+                // Tombol Debloat khusus untuk System App yang tidak kritikal
                 if (item.isSystem && !item.isCritical) {
                     OutlinedButton(
-                        onClick = { vm.debloatSystemApp(ctx, item) },
+                        onClick = onRequestDebloat,
                         enabled = canAct && !isLoading,
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),

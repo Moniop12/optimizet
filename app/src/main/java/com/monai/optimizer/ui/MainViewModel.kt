@@ -160,8 +160,10 @@ class MainViewModel : ViewModel() {
         "com.android.systemui",
         "com.android.settings",
         "com.android.phone",
+        "com.android.server.telecom",
         "com.android.providers.telephony",
         "com.android.providers.media",
+        "com.android.providers.media.module",
         "com.android.providers.settings",
         "com.android.packageinstaller",
         "com.google.android.packageinstaller",
@@ -169,9 +171,15 @@ class MainViewModel : ViewModel() {
         "com.google.android.permissioncontroller",
         "com.google.android.gms",
         "com.google.android.gsf",
+        "com.android.vending",
         "com.android.inputmethod",
         "com.android.wallpaperbackup",
-        "com.android.wallpapercropper"
+        "com.android.wallpapercropper",
+        "com.android.nfc",
+        "com.android.bluetooth",
+        "com.android.networkstack",
+        "com.google.android.ext.services",
+        "com.qualcomm.qti.telephonyservice"
     )
 
     private val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
